@@ -22,7 +22,7 @@ export function parseModule(bytes: Uint8Array, index = 0): [module: WasmModule, 
     }
     let sectionIndex = 8;
     let sections: types.WASMSection[] = [];
-    while(sectionIndex < bytes.byteLength){
+    while(sectionIndex < bytes.byteLength){ //looping through sections
         let [section, si] = parseSection(bytes, sectionIndex);
         sections.push(section);
         sectionIndex = si; // should match the length of the module

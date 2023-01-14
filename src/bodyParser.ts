@@ -8,25 +8,37 @@ export function parseType(bytes: Uint8Array, index: number): parsedBody{
     //checking the number of function signatures
     const [size, width] = lebToInt(bytes.slice(index, index+4)); //size is the number of functions signatures in the module
     index+= width; //offset after the number of function signatures declaration
-    if(bytes[index] != 0x60) throw new Error("No vector of function signatures.")
     const pb = new parsedBody(size, []);
-    index++; //offset at the start of the first function signature
+    
 
     for (let i = 0; i < size; i++) {
-            
+        console.log(bytes[index])
+        if(bytes[index] != 0x60) throw new Error("No vector of function signatures.")
+        index++; //offset at the start of the first function signature
+        let [size, width] = [0, 0];
+        let params:types.tupleType;
+        let returns:types.tupleType;
+        if(bytes[index] == 0) index++; //checking if there are any parameters
+        else{
             // parameter (number and types)
-            let [size, width] = lebToInt(bytes.slice(index, index+4));
+            [size, width] = lebToInt(bytes.slice(index, index+4));
             index+=width;
-            const params:types.tupleType = [size, bytes.slice(index, index+size)];
+            params = [size, bytes.slice(index, index+size)];
             index+=size;
+        }
+        if(bytes[index] == 0) index++; //checking if there are any parameters
+        else{
             // return values (number and types)
             [size, width] = lebToInt(bytes.slice(index, index+4));
             index+=width;
-            const returns:types.tupleType = [size, bytes.slice(index, index+size)];
-            // function
-            const func:types.funcType = {parameters:params, returns:returns}
-            pb.elements.push(func)
+            returns = [size, bytes.slice(index, index+size)];
+            index+=size;
         }
+        
+        // function
+        const func:types.funcType = {parameters:params!, returns:returns!}
+        pb.elements.push(func);
+    }
     return pb; 
 }
 
