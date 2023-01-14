@@ -26,7 +26,7 @@ export enum WASMSectionID {
 export type WASMSection = {
     id: WASMSectionID,
     size: number,
-    body:bp.parsedBody | Object
+    content:bp.TypeParsedBody | Object
 }
 
 //WASM Types

@@ -9,9 +9,8 @@ export class WasmModule implements types.WASMModule {
 }
 export class Section implements types.WASMSection {
 
-    constructor(public id: types.WASMSectionID, public size: number, public body:bp.parsedBody | Object){}
+    constructor(public id: types.WASMSectionID, public size: number, public content:bp.TypeParsedBody | Object){}
 }
-
 
 export function parseModule(bytes: Uint8Array, index = 0): [module: WasmModule, index: number] {
     //WASM_BINARY_MAGIC && WASM_BINARY_VERSION
@@ -34,7 +33,7 @@ export function parseModule(bytes: Uint8Array, index = 0): [module: WasmModule, 
 function parseSection(bytes: Uint8Array, index: number): [section: types.WASMSection, index: number] {
     const sectionId = bytes[index];
     const [size, width] = lebToInt(bytes.slice(index+1, index+1+4));
-    let pb:bp.parsedBody | Object;
+    let pb:bp.TypeParsedBody | Object;
     switch(sectionId){ // passing index+width+1 so it skips the section id and the size (size could be between 1 and 4 bytes)
         case 1: pb = bp.parseType(bytes, index+width+1); break;
         
