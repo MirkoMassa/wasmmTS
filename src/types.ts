@@ -1,3 +1,4 @@
+import * as bp from "./bodyParser";
 /*
 > one-byte section id
 > uint32 size of the contents, in bytes
@@ -24,7 +25,8 @@ export enum WASMSectionID {
 }
 export type WASMSection = {
     id: WASMSectionID,
-    size: number
+    size: number,
+    body:bp.parsedBody | Object
 }
 
 //WASM Types
