@@ -26,8 +26,8 @@ export class ImportSection extends Section<types.imports> {
         super(id, size, content);
     }
 }
-export class FunctionSection extends Section<types.funcType> {
-    constructor(public id: types.WASMSectionID.WAFunction, public size: number, public content: types.[])
+export class FunctionSection extends Section<number> { //number array (vector of type indices)
+    constructor(public id: types.WASMSectionID.WAFunction, public size: number, public content: number[])
     {
         super(id, size, content);
     }
@@ -57,19 +57,21 @@ export function parseModule(bytes: Uint8Array): [module: WasmModule, index: numb
 
 export function parseSection(bytes: Uint8Array, index: number): [section: Section<any> | Object, index: number] {
     const sectionId = bytes[index];
-    const [size, width] = lebToInt(bytes.slice(index+1, index+1+4));
+    index++; // going to section size
+    const [size, width] = lebToInt(bytes.slice(index, index+4));
     
     //debugging
 
     // console.log(size, width);
     // mimir(size, width);
     let pb: Section<any> ;
-    switch(sectionId){ // passing index+width+1 so it skips the section id and the size (size could be between 1 and 4 bytes)
-        case WASMSectionID.WAType: return [new TypeSection(sectionId, size, bp.parseType(bytes, index+width+1)), width+index+size+1];
-        case WASMSectionID.WAImport: return [pb, index] = bp.parseImport(bytes, index+width+1);
+    switch(sectionId){ // passing index+width so it skips the section id and the size (size can be between 1 and 4 bytes)
+        case WASMSectionID.WAType: return [new TypeSection(sectionId, size, bp.parseType(bytes, index+width)), width+index+size];
+        case WASMSectionID.WAImport: return [new ImportSection(sectionId, size, bp.parseImport(bytes, index+width)), width+index+size];
         // case WASMSectionID.WAFunction: return [new TypeSection(sectionId, size, bp.parseFunction(bytes, index+width+1)), width+index+size+1];
+
         //...
-        default: return [{}, index];6
+        default: return [{}, index];
     }
     // return [pb, width+index+size+1]
 }

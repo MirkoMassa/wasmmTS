@@ -50,7 +50,7 @@ export function parseType(bytes: Uint8Array, index: number): types.funcType[] {
 // console.log(JSON.stringify(parseType(new Uint8Array([0x01, 0x60, 0x02, 0x7F, 0x7F, 0x01, 0x7F]), 0)))
 
 
-export function parseImport(bytes: Uint8Array, index: number):[body: types.imports[], newindex: number]{
+export function parseImport(bytes: Uint8Array, index: number):types.imports[]{
 
     const [size, width] = lebToInt(bytes.slice(index, index+4));
     index+= width;
@@ -92,7 +92,7 @@ export function parseImport(bytes: Uint8Array, index: number):[body: types.impor
         pb[i] = parsedImport;
     }
 
-    return [pb, index];
+    return pb;
     //pass back the index to verify that we parsed everything and reached the same index
 }
 console.log(JSON.stringify(parseImport(new Uint8Array([0x01, 0x07, 0x69, 0x6D, 0x70, 0x6F, 0x72, 0x74, 0x73, 0x0B, 0x72, 0x65, 0x64, 0x75, 0x63, 0x65, 
