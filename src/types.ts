@@ -7,7 +7,7 @@ import * as parser from "./parser";
 */
 export type WASMModule = {
     version: number;
-    sections: WASMSection[];
+    sections: WASMSection<any>[];
 }
 export enum WASMSectionID {
     WACustom=0,
@@ -24,17 +24,13 @@ export enum WASMSectionID {
     WAData,
     WADataCount
 }
-export type WASMSection = {
+export type WASMSection<A> = {
     id: WASMSectionID,
     size: number,
-    content:bp.ParsedBody | Object
+    content:A[]
 }
 
 //***to be defined***
-
-// export type valType = numberType | vectorType | resultType;
-// export type resultType = valType[];
-
 
 // TYPE SECTION [ID 01]
 
@@ -51,21 +47,36 @@ export type funcType = {
 export type imports = {
     module:namesVector,
     name:namesVector,
-    description:parser.Section
+    description: descTypes
 }
+
 
 // helper types
 
-// //this is used for inner vectors, the body class is already a vector
-// export type vectorType = {
-
-//     // count of entries in the vector, needed because it is a converted leb128
-//     count: number,
-//     elements: []
-// }
-
 export type bytesVector = [count:number, bytes:Uint8Array];
 export type namesVector = [count:number, bytes:string];
+export type limits = {
+    min: number,
+    max: number | undefined
+}
+export type numType = 0x7F | 0x7E | 0x7D | 0x7C;
+export type refType = 0x70 | 0x6f;
+export type valType = numType | Array<any> | refType;
+
+export type tableType = {
+    et:refType, //element reference type
+    lim: limits
+}
+export type memType = {
+    lim: limits
+}
+// {kind: "globaltype", valtype: any, mutable: boolean}
+export type globalType = {
+    valtype: valType,
+    mutability: boolean //0 => constant | 1 => variable 
+}
+
+export type descTypes = number | tableType | memType | globalType;
 
 // 0x00:func, 0x01:table, 0x02:mem, 0x03:global
 // export type importDesc = 0x00 | 0x01 | 0x02 | 0x03

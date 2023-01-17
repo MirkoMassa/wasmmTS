@@ -14,10 +14,11 @@ export const decodeSignedLeb128 = (input: Uint8Array): [number, number] => {
       }
     }
   };
-
+  
   // trashy debug just to see if it works
 // console.log(decodeSignedLeb128(new Uint8Array([0x17])))
 // console.log(decodeSignedLeb128(new Uint8Array([0xE5, 0x8E, 0x26])))
 // console.log(0b10011000011101100101);
 // console.log(decodeSignedLeb128(new Uint8Array([0xE5, 0x8E, 0xE5])))
                                                      // 624485 
+// console.log(decodeSignedLeb128(new Uint8Array([0x19, 0x04])))

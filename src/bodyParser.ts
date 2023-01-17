@@ -1,22 +1,22 @@
 import {decodeSignedLeb128 as lebToInt} from "./Leb128ToInt";
 import  * as types  from "./types";
-import {parseSection} from "./parser";
 
 //parsed body in almost in every section id as almost every section has a vector
-export class ParsedBody{
+// export class ParsedBody{
 
-    // count is the size of the vector, elements are the module components described here
-    // https://webassembly.github.io/spec/core/syntax/modules.html#syntax-module
+//     // count is the size of the vector, elements are the module components described here
+//     // https://webassembly.github.io/spec/core/syntax/modules.html#syntax-module
 
-    //for now elements has any type because I'm not sure how much types there will be
-    constructor (public count:number, public elements:any = []){}
-}
+//     //for now elements has any type because I'm not sure how much types there will be
+//     constructor (public count:number, public elements:any = []){}
+// }
 
-export function parseType(bytes: Uint8Array, index: number): ParsedBody{
+
+export function parseType(bytes: Uint8Array, index: number): types.funcType[] {
     //checking the number of function signatures
     const [size, width] = lebToInt(bytes.slice(index, index+4)); //size is the number of functions signatures in the module
     index+= width; //offset after the number of function signatures declaration
-    const pb = new ParsedBody(size, []);
+    const pb = new Array(size);
 
     for (let i = 0; i < size; i++) {
         if(bytes[index] != 0x60) throw new Error("No vector of function signatures.")
@@ -43,17 +43,18 @@ export function parseType(bytes: Uint8Array, index: number): ParsedBody{
         }
         // function
         const func:types.funcType = {parameters:params!, returns:returns!}
-        pb.elements.push(func);
+        pb[i] = func;
     }
     return pb; 
 }
 // console.log(JSON.stringify(parseType(new Uint8Array([0x01, 0x60, 0x02, 0x7F, 0x7F, 0x01, 0x7F]), 0)))
 
-export function parseImport(bytes: Uint8Array, index: number): ParsedBody{
+
+export function parseImport(bytes: Uint8Array, index: number):[body: types.imports[], newindex: number]{
 
     const [size, width] = lebToInt(bytes.slice(index, index+4));
     index+= width;
-    const pb = new ParsedBody(size, []);
+    const pb = new Array(size);
     //name parsing
     for (let i = 0; i < size; i++) {
         let [inSize, inWidth] = [0, 0];
@@ -77,15 +78,28 @@ export function parseImport(bytes: Uint8Array, index: number): ParsedBody{
         }
 
         index += inSize;
-        //desc (1 byte long, no encoding, section id)
-        
+        //1 byte long, no encoding, importdesc
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
-
-        const desc = parseSection(bytes, index);
-        const parsedImport:types.imports = {module:module, name:name, description:desc[0]}; //desc[0] is just the types.WASMSection
-        index = desc[1]; //desc[1] is the new index after the section parsing
-        pb.elements.push(parsedImport);
+        // let desc:types.WASMSection<types.imports>;
+        let desc:types.descTypes;
+        
+        switch(bytes[index]) {
+            case 0: [desc, index] = parseFunctionTypeidx(bytes, index+1); break; // importdesc here is an entire section (equals to function section, id 3)
+            //...
+            default: {}; break;
+        }
+        const parsedImport:types.imports = {module:module, name:name, description:desc!};
+        pb[i] = parsedImport;
     }
 
-    return pb;
+    return [pb, index];
+    //pass back the index to verify that we parsed everything and reached the same index
 }
+console.log(JSON.stringify(parseImport(new Uint8Array([0x01, 0x07, 0x69, 0x6D, 0x70, 0x6F, 0x72, 0x74, 0x73, 0x0B, 0x72, 0x65, 0x64, 0x75, 0x63, 0x65, 
+    0x5F, 0x66, 0x75, 0x6E, 0x63, 0x00, 0x04]), 0)))
+
+export function parseFunctionTypeidx(bytes: Uint8Array, index: number): [number, number] {
+    const [id, width] = lebToInt(bytes.slice(index, index+4));
+    return [id, index+width];
+}
+
