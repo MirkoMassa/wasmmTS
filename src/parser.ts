@@ -3,17 +3,17 @@ import  {WASMSectionID} from "./types";
 import {mimir} from "./debugging/sleep";
 import {decodeSignedLeb128 as lebToInt} from "./Leb128ToInt"
 import * as bp from "./bodyParser";
+import * as descParser from "./helperParser";
 
+// Generic classes
 export class WasmModule implements types.WASMModule {
-    
     constructor(public readonly version: number, public sections: types.WASMSection<any>[]){}
-    
 }
 export class Section<A> implements types.WASMSection<A> {
-
-    constructor(public id: types.WASMSectionID, public size: number, public content: A[]){}
+    constructor(public id: types.WASMSectionID, public size: number, public content: A[] | A | null){}
 }
 
+// Section classes
 export class TypeSection extends Section<types.funcType> {
     constructor(public id: types.WASMSectionID.WAType, public size: number, public content: types.funcType[])
     {
@@ -32,8 +32,39 @@ export class FunctionSection extends Section<number> { //number array (vector of
         super(id, size, content);
     }
 }
+export class TableSection extends Section<types.tableType> {
+    constructor(public id: types.WASMSectionID.WATable, public size: number, public content: types.tableType[])
+    {
+        super(id, size, content);
+    }
+}
+export class MemorySection extends Section<types.limits> {
+    constructor(public id: types.WASMSectionID.WAMemory, public size: number, public content: types.limits[])
+    {
+        super(id, size, content);
+    }
+}
+export class GlobalSection extends Section<types.global> {
+    constructor(public id: types.WASMSectionID.WAGlobal, public size: number, public content: types.global[])
+    {
+        super(id, size, content);
+    }
+}
+export class ExportSection extends Section<types.exports> {
+    constructor(public id: types.WASMSectionID.WAExport, public size: number, public content: types.exports[])
+    {
+        super(id, size, content);
+    }
+}
+export class StartSection extends Section<number> {
+    constructor(public id: types.WASMSectionID.WAStart, public size: number, public content: number | null)
+    {
+        super(id, size, content);
+    }
+}
 
 
+// actual parsing functions
 
 export function parseModule(bytes: Uint8Array): [module: WasmModule, index: number] {
     //WASM_BINARY_MAGIC && WASM_BINARY_VERSION
@@ -58,20 +89,28 @@ export function parseModule(bytes: Uint8Array): [module: WasmModule, index: numb
 export function parseSection(bytes: Uint8Array, index: number): [section: Section<any> | Object, index: number] {
     const sectionId = bytes[index];
     index++; // going to section size
-    const [size, width] = lebToInt(bytes.slice(index, index+4));
-    
+    const [secSize, width] = lebToInt(bytes.slice(index, index+4));
+    console.log("id",sectionId)
     //debugging
-
-    // console.log(size, width);
-    // mimir(size, width);
-    let pb: Section<any> ;
+    // mimir(secSize, width);
+    let pb: Section<any>;
     switch(sectionId){ // passing index+width so it skips the section id and the size (size can be between 1 and 4 bytes)
-        case WASMSectionID.WAType: return [new TypeSection(sectionId, size, bp.parseType(bytes, index+width)), width+index+size];
-        case WASMSectionID.WAImport: return [new ImportSection(sectionId, size, bp.parseImport(bytes, index+width)), width+index+size];
-        // case WASMSectionID.WAFunction: return [new TypeSection(sectionId, size, bp.parseFunction(bytes, index+width+1)), width+index+size+1];
-
+        case WASMSectionID.WAType: return [new TypeSection(sectionId, secSize, bp.parseType(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WAImport: return [new ImportSection(sectionId, secSize, bp.parseImport(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WAFunction: return [new FunctionSection(sectionId, secSize, bp.parseFunction(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WATable: return [new TableSection(sectionId, secSize, bp.parseTable(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WAMemory: return [new MemorySection(sectionId, secSize, bp.parseMemory(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WAGlobal: return [new GlobalSection(sectionId, secSize, bp.parseGlobal(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WAExport: return [new ExportSection(sectionId, secSize, bp.parseExport(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WAStart:{
+            if(secSize == 0) return [new StartSection(sectionId, secSize, null), width+index]; // no content inside section Start
+            const [funcidx, idxwidth] = descParser.parseidx(bytes, index+width); 
+            return [new StartSection(sectionId, secSize, funcidx), width+index+secSize]; //@todo check if width+index+secSize needs even the width of funcidx
+        }
+        case WASMSectionID.WAElement: 
         //...
         default: return [{}, index];
     }
-    // return [pb, width+index+size+1]
+    // return [pb, width+index+secSize]
 }
+

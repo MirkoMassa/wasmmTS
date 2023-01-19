@@ -27,7 +27,7 @@ export enum WASMSectionID {
 export type WASMSection<A> = {
     id: WASMSectionID,
     size: number,
-    content:A[]
+    content:A[] | A | null
 }
 
 //***to be defined***
@@ -49,34 +49,43 @@ export type imports = {
     name:namesVector,
     description: descTypes
 }
+// GLOBAL SECTION [ID 06]
+export type global = {
+    gt:globalType,
+    expr:Uint8Array[]
+}
+// EXPORT SECTION [ID 07]
+export type exports = {
+    name:namesVector,
+    description: descTypes
+}
 
 
 // helper types
 
 export type bytesVector = [count:number, bytes:Uint8Array];
 export type namesVector = [count:number, bytes:string];
-export type limits = {
+export type limits = { // also encoding for memory types
+    flag: flag,
     min: number,
     max: number | undefined
 }
+
+export type flag = 0x00 | 0x01; // 0 => min | 1 => min, max
 export type numType = 0x7F | 0x7E | 0x7D | 0x7C;
 export type refType = 0x70 | 0x6f;
-export type valType = numType | Array<any> | refType;
+export type vecType = 0x7B;
+export type valType = numType | vecType | refType;
+export type descTypes = number | tableType | limits | globalType;
 
 export type tableType = {
-    et:refType, //element reference type
-    lim: limits
-}
-export type memType = {
+    et: refType, //element reference type
     lim: limits
 }
 // {kind: "globaltype", valtype: any, mutable: boolean}
 export type globalType = {
     valtype: valType,
-    mutability: boolean //0 => constant | 1 => variable 
+    mutability: flag // 0 => constant | 1 => variable 
 }
-
-export type descTypes = number | tableType | memType | globalType;
-
 // 0x00:func, 0x01:table, 0x02:mem, 0x03:global
 // export type importDesc = 0x00 | 0x01 | 0x02 | 0x03
