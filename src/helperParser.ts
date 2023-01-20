@@ -35,30 +35,27 @@ export function parseLimits(bytes: Uint8Array, index: number):[types.limits, num
 
 export function parseGlobalType(bytes: Uint8Array, index: number):[types.globalType, number]{
     let valtype:types.valType;
-    switch(bytes[index]){
-        case 0x7F: 
-        case 0x7E: 
-        case 0x7D: 
-        case 0x7C:
-            valtype = bytes[index] as types.numType;
-            index++;
-            break;
-        case 0x70:
-        case 0x6f:
-            valtype = bytes[index] as types.refType;
-            index++;
-            break;
-        case 0x7B:
-            valtype = bytes[index] as types.vecType;
-            index++;
-            break;
-        default: throw new Error("Invalid valType.")
-    }
+    [valtype, index] = parseValType(bytes, index);
     // console.log(valtype!);
     if(bytes[index] != 0 && bytes[index] != 1) throw new Error("Invalid mutability.");
     return [{valtype, mutability:bytes[index] as types.flag}, index+1];
 }
 
+export function parseValType(bytes: Uint8Array, index: number):[types.valType, number]{
+    switch(bytes[index]){
+        case 0x7F: 
+        case 0x7E: 
+        case 0x7D: 
+        case 0x7C:
+            return [bytes[index] as types.numType, index+1];
+        case 0x70:
+        case 0x6f:
+            return [bytes[index] as types.refType, index+1];
+        case 0x7B:
+            return [bytes[index] as types.vecType, index+1];
+        default: throw new Error("Invalid valType.")
+    }
+}
 export function parseExpr(bytes: Uint8Array, index: number):[Uint8Array, number]{
     let expr = new Uint8Array;
     let i = 0;
@@ -68,6 +65,14 @@ export function parseExpr(bytes: Uint8Array, index: number):[Uint8Array, number]
         index++;
     }
     // if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
-    expr[i] = bytes[index];
-    return [expr, index];
+    expr[i] = 0x0B;
+    return [expr, index+1];
+}
+
+export function parseLocals(bytes: Uint8Array, index: number):[types.locals, number]{
+    const [number, width] = lebToInt(bytes.slice(index, index+4));
+    index+=width;
+    let valtype:types.valType;
+    [valtype, index] = parseValType(bytes, index);
+    return [{number, type:valtype}, index];
 }

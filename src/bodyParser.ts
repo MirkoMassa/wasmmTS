@@ -74,13 +74,14 @@ export function parseImport(bytes: Uint8Array, index: number):types.imports[]{
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
         // let desc:types.WASMSection<types.imports>;
         let desc:types.descTypes;
-        switch(bytes[index]) {
-            case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
-            case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
-            case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
-            case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
-            default: throw new Error("Invalid description value.");
-        }
+        // switch(bytes[index]) {
+        //     case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
+        //     case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
+        //     case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
+        //     case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
+        //     default: throw new Error("Invalid description value.");
+        // }
+        [desc, index] = descParser.parseidx(bytes, index+1); //they are all ids
         const parsedImport:types.imports = {module:module, name:name, description:desc};
         importVec[i] = parsedImport;
     }
@@ -106,9 +107,7 @@ export function parseTable(bytes: Uint8Array, index: number):types.tableType[]{
     let tabletypeVec = new Array(size);
     index+=width;
     for (let i = 0; i < size; i++) {
-        let table:types.tableType;
-        [table, index] = descParser.parseTableType(bytes, index);
-        tabletypeVec[i] = table;
+        [tabletypeVec[i], index] = descParser.parseTableType(bytes, index);
     }
     return tabletypeVec;
 }
@@ -118,9 +117,7 @@ export function parseMemory(bytes: Uint8Array, index: number):types.limits[]{
     let memVec = new Array(size);
     index+=width;
     for (let i = 0; i < size; i++) {
-        let mem:types.limits;
-        [mem, index] = descParser.parseLimits(bytes, index);
-        memVec[i] = mem;
+        [memVec[i], index] = descParser.parseLimits(bytes, index);
     }
     return memVec;
 }
@@ -162,8 +159,32 @@ export function parseExport(bytes: Uint8Array, index: number):types.exports[]{
             case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
             default: throw new Error("Invalid description value.");
         }
-        const parsedImport:types.exports = {name:name, description:desc};
-        exportVec[i] = parsedImport;
+        exportVec[i] = {name:name, description:desc};
     }
     return exportVec;
+}
+
+export function parseCode(bytes: Uint8Array, index: number):types.code[]{
+    const [size, width] = lebToInt(bytes.slice(index, index+4));
+    index+= width;
+    const codeVec = new Array(size);
+
+    for (let i = 0; i < size; i++) {
+        //size of the code
+        let [inSize, inWidth] = lebToInt(bytes.slice(index, index+4));
+        let codeSize = inSize;
+        index+=inWidth;        
+        //locals vec
+        [inSize, inWidth] = lebToInt(bytes.slice(index, index+4));
+        let locals:types.locals[] = new Array[size];
+        for (let j = 0; j < inSize; j++) {
+            [locals[j], index] = descParser.parseLocals(bytes, index);
+        }
+        //expression
+        let expr:Uint8Array;
+        [expr, index] = descParser.parseExpr(bytes, index);
+
+        codeVec[i] = {codeSize, content:{locals, expr}};
+    }
+    return codeVec;
 }

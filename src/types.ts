@@ -60,6 +60,11 @@ export type exports = {
     description: descTypes
 }
 
+// CODE SECTION [ID 10]
+export type code = {
+    codeSize: number,
+    content: funcComponent
+}
 
 // helper types
 
@@ -70,7 +75,6 @@ export type limits = { // also encoding for memory types
     min: number,
     max: number | undefined
 }
-
 export type flag = 0x00 | 0x01; // 0 => min | 1 => min, max
 export type numType = 0x7F | 0x7E | 0x7D | 0x7C;
 export type refType = 0x70 | 0x6f;
@@ -86,6 +90,15 @@ export type tableType = {
 export type globalType = {
     valtype: valType,
     mutability: flag // 0 => constant | 1 => variable 
+}
+
+export type funcComponent = {
+    locals: locals[],
+    body: Uint8Array[]
+}
+export type locals = {
+    number: number,
+    type: valType
 }
 // 0x00:func, 0x01:table, 0x02:mem, 0x03:global
 // export type importDesc = 0x00 | 0x01 | 0x02 | 0x03
