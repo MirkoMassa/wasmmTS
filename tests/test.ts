@@ -15,15 +15,15 @@ import * as descParser from "../src/helperParser";
 //npx jest
 
 describe("parseImport", () => {
-    test("parseImport section typeidx", () => { //01 07 69 6D 70 6F 72 74 73 0B 72 65 64 75 63 65 5F 66 75 6E 63 00 02
-        const importTest = new Uint8Array([0x01, 0x07, 0x69, 0x6D, 0x70, 0x6F, 0x72, 0x74, 0x73, 0x0B, 0x72, 0x65, 0x64, 0x75, 0x63, 0x65, 0x5F, 0x66, 0x75, 0x6E, 0x63, 0x00, 0x04]);
+    test("parseImport section from arrays.wasm", () => { 
+        const importTest = new Uint8Array([0x01, 0x07, 0x69, 0x6D, 0x70, 0x6F, 0x72, 0x74, 0x73, 0x0B, 0x72, 0x65, 0x64, 0x75, 0x63, 0x65, 0x5F, 0x66, 0x75, 0x6E, 0x63, 0x00, 0x02]);
         let result = bp.parseImport(importTest, 0);
         expect(result).toEqual(
             [
                 {
                   module: [ 7, 'imports' ],
                   name: [ 11, 'reduce_func' ],
-                  description: 4
+                  description: 2
                 }
               ]
         )
@@ -31,16 +31,31 @@ describe("parseImport", () => {
     })
 })
 describe("parseFunction", () =>{
-    test("parsefunction section from arrays.wasm", ()=>{ //0A 00 00 02 03 02 04 00 04 02 02
+    test("parseFunction section from arrays.wasm", ()=>{
         const functionTest = new Uint8Array([0x0A, 0x00, 0x00, 0x02, 0x03, 0x02, 0x04, 0x00, 0x04, 0x02, 0x02]);
         let result = bp.parseFunction(functionTest, 0);
-        console.log(result);
         expect(result).toEqual(
             [0,0,2,3,2,4,0,4,2,2]
         )
     })
 })
+describe("parseTable", () =>{
 
+})
+
+describe("parseMemory", ()=>{
+    //limits array
+    test("parseMemory section from arrays.wasm", () => {
+        const memory = new Uint8Array([0x01, 0x00, 0x01]);
+        let result = bp.parseMemory(memory, 0);
+        expect(result).toEqual(
+           [{
+            flag: 0,
+            min: 1
+           }]
+        )
+    })
+})
 describe("descParser.parseLimits", () => {
     test("parselimit flag 1", () => {
         const limit = new Uint8Array([0x01, 0x01, 0x02]);
@@ -94,7 +109,21 @@ describe("descParser.parseGlobalType", () => {
     })
 })
 
+describe("parseExport", ()=>{
+    test("parseExport section from arrays.wasm", ()=>{
+        const exports = new Uint8Array([0x06, 0x05, 0x61, 0x72, 0x72, 0x61, 0x79, 0x00, 0x07, 0x03, 0x67, 
+        0x65, 0x74, 0x00, 0x05, 0x06, 0x6C, 0x65, 0x6E, 0x67, 0x74, 0x68, 0x00, 0x02, 0x05, 0x72, 0x61, 
+        0x6E, 0x67, 0x65, 0x00, 0x09, 0x06, 0x72, 0x65, 0x64, 0x75, 0x63, 0x65, 0x00, 0x0A, 0x06, 0x6D, 
+        0x65, 0x6D, 0x6F, 0x72, 0x79, 0x02, 0x00, 0x0A, 0xA6, 0x02]); //last 3 are out of section, just for the sake of testing
 
+        let result = bp.parseExport(exports, 0);
+        console.log(result);
+        // expect(result).toEqual(
+            
+        // )
+    })
+
+})
 
 
 // console.log(Array.prototype.slice.call(test).map(byte=>byte.toString(16)))
