@@ -62,6 +62,12 @@ export class StartSection extends Section<number> {
         super(id, size, content);
     }
 }
+export class CodeSection extends Section<types.code> {
+    constructor(public id: types.WASMSectionID.WACode, public size: number, public content: types.code[])
+    {
+        super(id, size, content);
+    }
+}
 
 
 // actual parsing functions
@@ -107,10 +113,13 @@ export function parseSection(bytes: Uint8Array, index: number): [section: Sectio
             const [funcidx, idxwidth] = descParser.parseidx(bytes, index+width); 
             return [new StartSection(sectionId, secSize, funcidx), width+index+secSize]; //@todo check if width+index+secSize needs even the width of funcidx
         }
-        case WASMSectionID.WAElement: 
+        case WASMSectionID.WACode: return [new CodeSection(sectionId, secSize, bp.parseCode(bytes, index+width)), width+index+secSize];
         //...
         default: return [{}, index];
     }
     // return [pb, width+index+secSize]
 }
 
+import fs from 'fs';
+const output = new Uint8Array(fs.readFileSync('../tests/arrays.wasm'));
+console.log(JSON.stringify(parseModule(output), null, 1));

@@ -129,7 +129,7 @@ export function parseGlobal(bytes: Uint8Array, index: number):types.global[]{
     for (let i = 0; i < size; i++) {
         let gt:types.globalType;
         [gt, index] = descParser.parseGlobalType(bytes, index);
-        let expr:Uint8Array;
+        let expr:number[];
         [expr, index] = descParser.parseExpr(bytes, index);
         globalVec[i] = {gt, expr};
     }
@@ -165,24 +165,30 @@ export function parseExport(bytes: Uint8Array, index: number):types.exports[]{
 }
 
 export function parseCode(bytes: Uint8Array, index: number):types.code[]{
-    const [size, width] = lebToInt(bytes.slice(index, index+4));
+    const [functionCount, width] = lebToInt(bytes.slice(index, index+4));
     index+= width;
-    const codeVec = new Array(size);
+    const codeVec = new Array(functionCount);
 
-    for (let i = 0; i < size; i++) {
+    for (let i = 0; i < functionCount; i++) {
         //size of the code
-        let [inSize, inWidth] = lebToInt(bytes.slice(index, index+4));
-        let codeSize = inSize;
-        index+=inWidth;        
+        let [functionSize, inWidth] = lebToInt(bytes.slice(index, index+4));
+        console.log("functionSize",functionSize);
+        let codeSize = functionSize;
+        index+=inWidth;
+
         //locals vec
-        [inSize, inWidth] = lebToInt(bytes.slice(index, index+4));
-        let locals:types.locals[] = new Array[size];
-        for (let j = 0; j < inSize; j++) {
+        let oldIndex = index;
+        let localCount = 0;
+        [localCount, inWidth] = lebToInt(bytes.slice(index, index+4));
+        console.log("localCount", localCount)
+        index+=inWidth; 
+        let locals = new Array(localCount);
+        for (let j = 0; j < localCount; j++) {
             [locals[j], index] = descParser.parseLocals(bytes, index);
         }
         //expression
-        let expr:Uint8Array;
-        [expr, index] = descParser.parseExpr(bytes, index);
+        let expr:number[];
+        [expr, index] = descParser.parseExpr(bytes, index, functionSize-(index-oldIndex)-1);
 
         codeVec[i] = {codeSize, content:{locals, expr}};
     }

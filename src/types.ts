@@ -52,7 +52,7 @@ export type imports = {
 // GLOBAL SECTION [ID 06]
 export type global = {
     gt:globalType,
-    expr:Uint8Array[]
+    expr:number[]
 }
 // EXPORT SECTION [ID 07]
 export type exports = {
@@ -94,7 +94,7 @@ export type globalType = {
 
 export type funcComponent = {
     locals: locals[],
-    body: Uint8Array[]
+    body: number[]
 }
 export type locals = {
     number: number,

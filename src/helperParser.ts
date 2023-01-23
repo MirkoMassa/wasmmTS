@@ -42,6 +42,7 @@ export function parseGlobalType(bytes: Uint8Array, index: number):[types.globalT
 }
 
 export function parseValType(bytes: Uint8Array, index: number):[types.valType, number]{
+    console.log(bytes[index])
     switch(bytes[index]){
         case 0x7F: 
         case 0x7E: 
@@ -53,19 +54,25 @@ export function parseValType(bytes: Uint8Array, index: number):[types.valType, n
             return [bytes[index] as types.refType, index+1];
         case 0x7B:
             return [bytes[index] as types.vecType, index+1];
-        default: throw new Error("Invalid valType.")
+        default: 
+            let error = new Error(`Invalid valType at ${index} ${bytes[index].toString(16)}, ${Array.from(bytes.slice(index-5, index+1)).map(x => x.toString(16))}`);
+
+            throw error;
     }
 }
-export function parseExpr(bytes: Uint8Array, index: number):[Uint8Array, number]{
-    let expr = new Uint8Array;
+export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):[number[], number]{
+    let expr:number[] = [];
     let i = 0;
-    while(bytes[index] !== 0x0B){
+    while(i < length){
         expr[i] = bytes[index];
         i++;
         index++;
     }
-    // if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
-    expr[i] = 0x0B;
+    console.log(bytes[index].toString(16))
+    if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
+    // expr[i] = 0x0B;
+
+    logAsHex(expr);
     return [expr, index+1];
 }
 
@@ -75,4 +82,14 @@ export function parseLocals(bytes: Uint8Array, index: number):[types.locals, num
     let valtype:types.valType;
     [valtype, index] = parseValType(bytes, index);
     return [{number, type:valtype}, index];
+}
+
+// test
+
+export function logAsHex(numbers:number[]){
+    
+    let res = "";
+    numbers.forEach(num => {res = res.concat(num.toString(16)+", ")});
+    res = res.slice(0, res.length-2)
+    console.log(res);
 }
