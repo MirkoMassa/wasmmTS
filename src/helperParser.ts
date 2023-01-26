@@ -68,11 +68,10 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
         i++;
         index++;
     }
-    if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
-    // expr[i] = 0x0B;
-
-    // logAsHex(expr);
-    return [expr, index+1];
+    logAsHex(expr)
+    if(bytes[index-1] !== 0x0B) throw new Error("Invalid expression.");
+    
+    return [expr, index];
 }
 
 export function parseLocals(bytes: Uint8Array, index: number):[types.locals, number]{

@@ -1,6 +1,7 @@
 import {decodeSignedLeb128 as lebToInt} from "./leb128ToInt";
 import  * as types from "./types";
 import * as descParser from "./helperParser";
+import { table } from "console";
 // export class ParsedBody{ //I guess I don't need that
 
 //     // count is the size of the vector, elements are the module components described here
@@ -334,24 +335,22 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
 
     for (let i = 0; i < functionCount; i++) {
         //size of the code
-        let [functionSize, inWidth] = lebToInt(bytes.slice(index, index+4));
+        let [codeSize, inWidth] = lebToInt(bytes.slice(index, index+4));
         // console.log("functionSize",functionSize);
-        let codeSize = functionSize;
         index+=inWidth;
-
-        //locals vec
         let oldIndex = index;
-        let localCount = 0;
+        //locals vec
+        let localCount;
         [localCount, inWidth] = lebToInt(bytes.slice(index, index+4));
-        // console.log("localCount", localCount)
         index+=inWidth; 
         let locals = new Array(localCount);
         for (let j = 0; j < localCount; j++) {
             [locals[j], index] = descParser.parseLocals(bytes, index);
         }
+
         //expression
         let expr:number[];
-        [expr, index] = descParser.parseExpr(bytes, index, functionSize-(index-oldIndex)-1);
+        [expr, index] = descParser.parseExpr(bytes, index, codeSize-(index-oldIndex));
 
         codeVec[i] = {codeSize, content:{locals, expr}};
     }
