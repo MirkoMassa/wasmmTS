@@ -74,14 +74,13 @@ export function parseImport(bytes: Uint8Array, index: number):types.imports[]{
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
         // let desc:types.WASMSection<types.imports>;
         let desc:types.descTypes;
-        // switch(bytes[index]) {
-        //     case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
-        //     case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
-        //     case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
-        //     case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
-        //     default: throw new Error("Invalid description value.");
-        // }
-        [desc, index] = descParser.parseidx(bytes, index+1); //they are all ids
+        switch(bytes[index]) {
+            case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
+            case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
+            case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
+            case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
+            default: throw new Error("Invalid description value.");
+        }
         const parsedImport:types.imports = {module:module, name:name, description:desc};
         importVec[i] = parsedImport;
     }
@@ -130,7 +129,7 @@ export function parseGlobal(bytes: Uint8Array, index: number):types.global[]{
         let gt:types.globalType;
         [gt, index] = descParser.parseGlobalType(bytes, index);
         let expr:number[];
-        [expr, index] = descParser.parseExpr(bytes, index);
+        [expr, index] = descParser.parseExpr(bytes, index, );
         globalVec[i] = {gt, expr};
     }
     return globalVec;
@@ -152,13 +151,14 @@ export function parseExport(bytes: Uint8Array, index: number):types.exports[]{
 
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
         let desc:types.descTypes;
-        switch(bytes[index]) {
-            case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
-            case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
-            case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
-            case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
-            default: throw new Error("Invalid description value.");
-        }
+        // switch(bytes[index]) {
+        //     case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
+        //     case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
+        //     case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
+        //     case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
+        //     default: throw new Error("Invalid description value.");
+        // }
+        [desc, index] = descParser.parseidx(bytes, index+1); //they are all indices
         exportVec[i] = {name:name, description:desc};
     }
     return exportVec;
@@ -188,7 +188,7 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                         index+= width;
                         funcidxVec[j] = funcidx;
                     }
-                    funcidxVec.push(0x0B);
+                    funcidxVec[size] = 0x0B;
 
                     elemVec[i] = {type:0x70, init:funcidxVec, mode:0x01, activemode: {table: 0, offset}}
                     break;
@@ -198,7 +198,7 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                 {
                     // elemkind
                     if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 1.");
-
+                    index++;
                     //vector of funcidx
                     const [size, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
@@ -208,17 +208,20 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                         index+= width;
                         funcidxVec[j] = funcidx;
                     }
-                    funcidxVec.push(0x0B);
+                    funcidxVec[size] = 0x0B;
 
                     elemVec[i] = {type: 0x00, init: funcidxVec, mode: 0x00}
+                    break;
                 }
             case 2:
                 {
                     // tableidx
                     let [tableidx, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
+                    // offset
                     let offset:number[];
                     [offset, index] = descParser.parseExpr(bytes, index);
+
                     // elemkind
                     if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 2.");
                     // vector of funcidx
@@ -231,15 +234,16 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                         index+= width;
                         funcidxVec[j] = funcidx;
                     }
-                    funcidxVec.push(0x0B);
+                    funcidxVec[size] = 0x0B;
 
                     elemVec[i] = {type: 0x00, init: funcidxVec, mode: 0x01, activemode: {table: tableidx, offset}}
+                    break;
                 }
             case 3:
                 {
                     // elemkind
                     if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 3.");
-
+                    index++;
                     //vector of funcidx
                     const [size, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
@@ -249,9 +253,9 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                         index+= width;
                         funcidxVec[j] = funcidx;
                     }
-                    funcidxVec.push(0x0B);
-
+                    funcidxVec[size] = 0x0B;
                     elemVec[i] = {type: 0x00, init: funcidxVec, mode: 0x02}
+                    break;
                 }
             case 4:
                 {
@@ -265,8 +269,8 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     for (let j = 0; j < size; j++) {
                         [exprVec[j], index] = descParser.parseExpr(bytes, index);
                     }
-
                     elemVec[i] = {type:0x70, init:exprVec, mode:0x01, activemode: {table: 0, offset}}
+                    break;
                 }
             case 5:
                 {
@@ -281,8 +285,8 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     for (let j = 0; j < size; j++) {
                         [exprVec[j], index] = descParser.parseExpr(bytes, index);
                     }
-
                     elemVec[i] = {type:reftype, init:exprVec, mode:0x00}
+                    break;
                 }
             case 6:
                 {
@@ -306,6 +310,7 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     }
 
                     elemVec[i] = {type:reftype, init:exprVec, mode:0x01, activemode: {table: tableidx, offset}}
+                    break;
                 }
             case 7:
                 {
@@ -322,6 +327,7 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     }
 
                     elemVec[i] = {type:reftype, init:exprVec, mode:0x02}
+                    break;
                 }
         }
     }
@@ -330,24 +336,28 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
 
 export function parseCode(bytes: Uint8Array, index: number):types.code[]{
     const [functionCount, width] = lebToInt(bytes.slice(index, index+4));
+    // console.log("functionount", functionCount)
     index+= width;
     const codeVec = new Array(functionCount);
 
     for (let i = 0; i < functionCount; i++) {
         //size of the code
         let [codeSize, inWidth] = lebToInt(bytes.slice(index, index+4));
-        // console.log("functionSize",functionSize);
+        // console.log("codeSize",codeSize);
         index+=inWidth;
         let oldIndex = index;
         //locals vec
         let localCount;
         [localCount, inWidth] = lebToInt(bytes.slice(index, index+4));
+        // console.log("localcount", localCount)
         index+=inWidth; 
-        let locals = new Array(localCount);
-        for (let j = 0; j < localCount; j++) {
-            [locals[j], index] = descParser.parseLocals(bytes, index);
+        let locals;
+        if(localCount != 0){
+            locals = new Array(localCount);
+            for (let j = 0; j < localCount; j++) {
+                [locals[j], index] = descParser.parseLocals(bytes, index);
+            }
         }
-
         //expression
         let expr:number[];
         [expr, index] = descParser.parseExpr(bytes, index, codeSize-(index-oldIndex));
@@ -361,7 +371,6 @@ export function parseData(bytes: Uint8Array, index: number):types.data[]{
     const [dataCount, width] = lebToInt(bytes.slice(index, index+4));
     index+= width;
     const dataVec = new Array(dataCount);
-
     for (let i = 0; i < dataCount; i++) {
         const [format, width] = lebToInt(bytes.slice(index, index+4));
         index+= width;
@@ -374,23 +383,27 @@ export function parseData(bytes: Uint8Array, index: number):types.data[]{
                     [offset, index] = descParser.parseExpr(bytes, index);
                     // bytes vec
                     let [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index += width;
                     const bytesVec = new Array(size);
                     for (let j = 0; j < size; j++) {
                         bytesVec[j] = bytes[index];
                         index++;
                     }
                     dataVec[i] = {init: bytesVec, mode: 0x01, activemode: {memory: 0, offset}}
+                    break;
                 }
                 case 1:
                     {
                         // bytes vec
                         let [size, width] = lebToInt(bytes.slice(index, index+4));
+                        index += width;
                         const bytesVec = new Array(size);
                         for (let j = 0; j < size; j++) {
                             bytesVec[j] = bytes[index];
                             index++;
                         }
                         dataVec[i] = {init: bytesVec, mode: 0x00}
+                        break;
                     }
                 case 2: 
                     {
@@ -409,6 +422,7 @@ export function parseData(bytes: Uint8Array, index: number):types.data[]{
                             index++;
                         }
                         dataVec[i] = {init: bytesVec, mode: 0x01, activemode: {memory: memidx, offset}}
+                        break;
                     }
         }
     }

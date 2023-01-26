@@ -7,9 +7,9 @@ export const decodeSignedLeb128 = (input: Uint8Array): [number, number] => {
       result |= (byte & 0x7f) << shift;
       shift += 7;
       if ((0x80 & byte) === 0) {
-        if (shift < 32 && (byte & 0x40) !== 0) {
-          return [result | (~0 << shift), index];
-        }
+        // if (shift < 32 && (byte & 0x40) !== 0) {
+        //   return [result | (~0 << shift), index];
+        // }
         return [result, index];
       }
     }
@@ -22,3 +22,4 @@ export const decodeSignedLeb128 = (input: Uint8Array): [number, number] => {
 // console.log(decodeSignedLeb128(new Uint8Array([0xE5, 0x8E, 0xE5])))
                                                      // 624485 
 // console.log(decodeSignedLeb128(new Uint8Array([0x19, 0x04])))
+// console.log(decodeSignedLeb128(new Uint8Array([0x50, 0x01, 0x4E, 0x00])))

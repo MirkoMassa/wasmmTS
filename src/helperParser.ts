@@ -42,7 +42,6 @@ export function parseGlobalType(bytes: Uint8Array, index: number):[types.globalT
 }
 
 export function parseValType(bytes: Uint8Array, index: number):[types.valType, number]{
-
     switch(bytes[index]){
         case 0x7F: 
         case 0x7E: 
@@ -56,21 +55,30 @@ export function parseValType(bytes: Uint8Array, index: number):[types.valType, n
             return [bytes[index] as types.vecType, index+1];
         default: 
             let error = new Error(`Invalid valType at ${index} ${bytes[index].toString(16)}, ${Array.from(bytes.slice(index-5, index+1)).map(x => x.toString(16))}`);
-
             throw error;
     }
 }
 export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):[number[], number]{
     let expr:number[] = [];
     let i = 0;
-    while(i < length){
-        expr[i] = bytes[index];
-        i++;
+    if(length!=0){
+        while(i < length){
+            expr[i] = bytes[index];
+            i++;
+            index++;
+        }
+        if(bytes[index-1] !== 0x0B) throw new Error("Invalid expression (passed length).");
+    }
+    else{
+        while(bytes[index] != 0x0B){
+            expr[i] = bytes[index];
+            i++;
+            index++;
+        }
+        if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
+        expr[i+1] = 0x0B;
         index++;
     }
-    logAsHex(expr)
-    if(bytes[index-1] !== 0x0B) throw new Error("Invalid expression.");
-    
     return [expr, index];
 }
 
@@ -91,9 +99,9 @@ export function parseName(bytes: Uint8Array, index: number):[types.namesVector, 
     index+=size;
     return [name, index]; 
 }
+
 // test
-export function logAsHex(numbers:number[]){
-    
+export function logAsHex(numbers:number[]){ 
     let res = "";
     numbers.forEach(num => {res = res.concat(num.toString(16)+", ")});
     res = res.slice(0, res.length-2)
