@@ -1,2 +1,3 @@
 node_modules
-WebAssembly
+tests/tools
+tests/main/coverage

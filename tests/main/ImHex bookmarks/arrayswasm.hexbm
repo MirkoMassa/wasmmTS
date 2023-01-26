@@ -1,0 +1,214 @@
+{
+    "bookmarks": [
+        {
+            "color": 1325400319,
+            "comment": "",
+            "locked": false,
+            "name": "ID 1 (typeSec) [0x8 - 0x8]",
+            "region": {
+                "address": 8,
+                "size": 1
+            }
+        },
+        {
+            "color": 3005861063,
+            "comment": "",
+            "locked": false,
+            "name": "length [0x9 - 0x9]",
+            "region": {
+                "address": 9,
+                "size": 1
+            }
+        },
+        {
+            "color": 1341756994,
+            "comment": "",
+            "locked": false,
+            "name": "Bookmark [0xA - 0x28]",
+            "region": {
+                "address": 10,
+                "size": 31
+            }
+        },
+        {
+            "color": 1325400319,
+            "comment": "",
+            "locked": false,
+            "name": "ID 2 (importSec) [0x29 - 0x29]",
+            "region": {
+                "address": 41,
+                "size": 1
+            }
+        },
+        {
+            "color": 3005861063,
+            "comment": "",
+            "locked": false,
+            "name": "length [0x2A - 0x2A]",
+            "region": {
+                "address": 42,
+                "size": 1
+            }
+        },
+        {
+            "color": 1341756994,
+            "comment": "",
+            "locked": false,
+            "name": "Bookmark [0x2B - 0x41]",
+            "region": {
+                "address": 43,
+                "size": 23
+            }
+        },
+        {
+            "color": 3003121919,
+            "comment": "",
+            "locked": false,
+            "name": "ID 3 (functionSec) [0x42 - 0x42]",
+            "region": {
+                "address": 66,
+                "size": 1
+            }
+        },
+        {
+            "color": 3005861063,
+            "comment": "",
+            "locked": false,
+            "name": "length [0x43 - 0x43]",
+            "region": {
+                "address": 67,
+                "size": 1
+            }
+        },
+        {
+            "color": 1341756994,
+            "comment": "",
+            "locked": false,
+            "name": "Bookmark [0x44 - 0x4E]",
+            "region": {
+                "address": 68,
+                "size": 11
+            }
+        },
+        {
+            "color": 1325400319,
+            "comment": "",
+            "locked": false,
+            "name": "ID 5 (memorySec) [0x4F - 0x4F]",
+            "region": {
+                "address": 79,
+                "size": 1
+            }
+        },
+        {
+            "color": 3005861063,
+            "comment": "",
+            "locked": false,
+            "name": "length [0x89 - 0x8A]",
+            "region": {
+                "address": 137,
+                "size": 2
+            }
+        },
+        {
+            "color": 1341756994,
+            "comment": "",
+            "locked": false,
+            "name": "Bookmark [0x51 - 0x53]",
+            "region": {
+                "address": 81,
+                "size": 3
+            }
+        },
+        {
+            "color": 3003121919,
+            "comment": "",
+            "locked": false,
+            "name": "ID 7 (exportSec) [0x54 - 0x54]",
+            "region": {
+                "address": 84,
+                "size": 1
+            }
+        },
+        {
+            "color": 3005861063,
+            "comment": "",
+            "locked": false,
+            "name": "length [0x55 - 0x55]",
+            "region": {
+                "address": 85,
+                "size": 1
+            }
+        },
+        {
+            "color": 1341756994,
+            "comment": "",
+            "locked": false,
+            "name": "Bookmark [0x56 - 0x87]",
+            "region": {
+                "address": 86,
+                "size": 50
+            }
+        },
+        {
+            "color": 1325400319,
+            "comment": "",
+            "locked": false,
+            "name": "ID 10 (codeSec) [0x88 - 0x88]",
+            "region": {
+                "address": 136,
+                "size": 1
+            }
+        },
+        {
+            "color": 3005861063,
+            "comment": "",
+            "locked": false,
+            "name": "length [0x50 - 0x50]",
+            "region": {
+                "address": 80,
+                "size": 1
+            }
+        },
+        {
+            "color": 1341756994,
+            "comment": "",
+            "locked": false,
+            "name": "Bookmark [0x8B - 0x1CC]",
+            "region": {
+                "address": 139,
+                "size": 322
+            }
+        },
+        {
+            "color": 1325400319,
+            "comment": "",
+            "locked": false,
+            "name": "ID 0 (customSec) [0x1CD - 0x1CD]",
+            "region": {
+                "address": 461,
+                "size": 1
+            }
+        },
+        {
+            "color": 3005861063,
+            "comment": "",
+            "locked": false,
+            "name": "length [0x1CE - 0x1CF]",
+            "region": {
+                "address": 462,
+                "size": 2
+            }
+        },
+        {
+            "color": 1341756994,
+            "comment": "",
+            "locked": false,
+            "name": "Bookmark [0x1D0 - 0x31F]",
+            "region": {
+                "address": 464,
+                "size": 336
+            }
+        }
+    ]
+}
