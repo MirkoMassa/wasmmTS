@@ -1,7 +1,7 @@
 import  * as types from "./types";
 import  {WASMSectionID} from "./types";
 import {mimir} from "./debugging/sleep";
-import {decodeSignedLeb128 as lebToInt} from "./Leb128ToInt"
+import {decodeSignedLeb128 as lebToInt} from "./leb128ToInt"
 import * as bp from "./bodyParser";
 import * as descParser from "./helperParser";
 
@@ -14,6 +14,12 @@ export class Section<A> implements types.WASMSection<A> {
 }
 
 // Section classes
+export class CustomSection extends Section<boolean> {
+    constructor(public id: types.WASMSectionID.WACustom, public size: number, public content: boolean)
+    {
+        super(id, size, content);
+    }
+}
 export class TypeSection extends Section<types.funcType> {
     constructor(public id: types.WASMSectionID.WAType, public size: number, public content: types.funcType[])
     {
@@ -62,13 +68,30 @@ export class StartSection extends Section<number> {
         super(id, size, content);
     }
 }
+export class ElementSection extends Section<types.elem> {
+    constructor(public id: types.WASMSectionID.WAElement, public size: number, public content: types.elem[])
+    {
+        super(id, size, content);
+    }
+}
 export class CodeSection extends Section<types.code> {
     constructor(public id: types.WASMSectionID.WACode, public size: number, public content: types.code[])
     {
         super(id, size, content);
     }
 }
-
+export class DataSection extends Section<types.data> {
+    constructor(public id: types.WASMSectionID.WAData, public size: number, public content: types.data[])
+    {
+        super(id, size, content);
+    }
+}
+export class DataCountSection extends Section<number> {
+    constructor(public id: types.WASMSectionID.WADataCount, public size: number, public content: number | null)
+    {
+        super(id, size, content);
+    }
+}
 
 // actual parsing functions
 
@@ -95,12 +118,15 @@ export function parseModule(bytes: Uint8Array): [module: WasmModule, index: numb
 export function parseSection(bytes: Uint8Array, index: number): [section: Section<any> | Object, index: number] {
     const sectionId = bytes[index];
     index++; // going to section size
+
     const [secSize, width] = lebToInt(bytes.slice(index, index+4));
-    console.log("id",sectionId)
+    // console.log("id",sectionId)
+    // console.log(`current: ${bytes[index].toString(16)}, ${Array.from(bytes.slice(index-5, index+1)).map(x => x.toString(16))}`)
     //debugging
     // mimir(secSize, width);
-    let pb: Section<any>;
+    // let pb: Section<any>;
     switch(sectionId){ // passing index+width so it skips the section id and the size (size can be between 1 and 4 bytes)
+        case WASMSectionID.WACustom: return [new CustomSection(sectionId, secSize, bp.parseCustomTemp(bytes, index+width)), width+index+secSize];
         case WASMSectionID.WAType: return [new TypeSection(sectionId, secSize, bp.parseType(bytes, index+width)), width+index+secSize];
         case WASMSectionID.WAImport: return [new ImportSection(sectionId, secSize, bp.parseImport(bytes, index+width)), width+index+secSize];
         case WASMSectionID.WAFunction: return [new FunctionSection(sectionId, secSize, bp.parseFunction(bytes, index+width)), width+index+secSize];
@@ -110,16 +136,20 @@ export function parseSection(bytes: Uint8Array, index: number): [section: Sectio
         case WASMSectionID.WAExport: return [new ExportSection(sectionId, secSize, bp.parseExport(bytes, index+width)), width+index+secSize];
         case WASMSectionID.WAStart:{
             if(secSize == 0) return [new StartSection(sectionId, secSize, null), width+index]; // no content inside section Start
-            const [funcidx, idxwidth] = descParser.parseidx(bytes, index+width); 
-            return [new StartSection(sectionId, secSize, funcidx), width+index+secSize]; //@todo check if width+index+secSize needs even the width of funcidx
+            const [funcidx, idxwidth] = descParser.parseidx(bytes, index+width);
+            return [new StartSection(sectionId, secSize, funcidx), width+index+secSize];
         }
+        case WASMSectionID.WAElement: return [new ElementSection(sectionId, secSize, bp.parseElement(bytes, index+width)), width+index+secSize];
         case WASMSectionID.WACode: return [new CodeSection(sectionId, secSize, bp.parseCode(bytes, index+width)), width+index+secSize];
-        //...
+        case WASMSectionID.WAData: return [new DataSection(sectionId, secSize, bp.parseData(bytes, index+width)), width+index+secSize];
+        case WASMSectionID.WADataCount: {
+            if(secSize == 0) return [new DataCountSection(sectionId, secSize, null), width+index];
+            const [integer, idxwidth] = descParser.parseidx(bytes, index+width);
+            return [new DataCountSection(sectionId, secSize, integer), width+index+secSize];
+        }
+        //0x0C 0x12 0x34
+
         default: return [{}, index];
     }
     // return [pb, width+index+secSize]
 }
-
-import fs from 'fs';
-const output = new Uint8Array(fs.readFileSync('../tests/arrays.wasm'));
-console.log(JSON.stringify(parseModule(output), null, 1));

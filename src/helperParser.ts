@@ -1,6 +1,6 @@
 // Helper functions for the description in the Section 2 parsing and for some other sections
 import  * as types from "./types";
-import {decodeSignedLeb128 as lebToInt} from "./Leb128ToInt";
+import {decodeSignedLeb128 as lebToInt} from "./leb128ToInt";
 
 export function parseidx(bytes: Uint8Array, index: number): [number, number] { //thats literally a parse int
     const [id, width] = lebToInt(bytes.slice(index, index+4));
@@ -42,7 +42,7 @@ export function parseGlobalType(bytes: Uint8Array, index: number):[types.globalT
 }
 
 export function parseValType(bytes: Uint8Array, index: number):[types.valType, number]{
-    console.log(bytes[index])
+
     switch(bytes[index]){
         case 0x7F: 
         case 0x7E: 
@@ -68,11 +68,10 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
         i++;
         index++;
     }
-    console.log(bytes[index].toString(16))
     if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
     // expr[i] = 0x0B;
 
-    logAsHex(expr);
+    // logAsHex(expr);
     return [expr, index+1];
 }
 
@@ -83,9 +82,17 @@ export function parseLocals(bytes: Uint8Array, index: number):[types.locals, num
     [valtype, index] = parseValType(bytes, index);
     return [{number, type:valtype}, index];
 }
-
+export function parseName(bytes: Uint8Array, index: number):[types.namesVector, number]{
+    let [size, width] = lebToInt(bytes.slice(index, index+4));
+    index+= width;
+    let name:types.namesVector = [size, ""];
+    for (let i = 0; i < size; i++){
+        name[1] = name[1].concat(String.fromCharCode(bytes[index+i]));
+    }
+    index+=size;
+    return [name, index]; 
+}
 // test
-
 export function logAsHex(numbers:number[]){
     
     let res = "";

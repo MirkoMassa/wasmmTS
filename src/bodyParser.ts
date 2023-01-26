@@ -1,4 +1,4 @@
-import {decodeSignedLeb128 as lebToInt} from "./Leb128ToInt";
+import {decodeSignedLeb128 as lebToInt} from "./leb128ToInt";
 import  * as types from "./types";
 import * as descParser from "./helperParser";
 // export class ParsedBody{ //I guess I don't need that
@@ -8,6 +8,15 @@ import * as descParser from "./helperParser";
 
 //     //for now elements has any type because I'm not sure how much types there will be
 //     constructor (public count:number, public elements:any = []){}
+// }
+export function parseCustomTemp(bytes: Uint8Array, index: number): boolean {
+    return true;
+}
+
+// export function parseCustom(bytes: Uint8Array, index: number): types.custom[] {
+//     // name
+//     descParser.parseName(bytes, index);
+    
 // }
 
 export function parseType(bytes: Uint8Array, index: number): types.funcType[] {
@@ -55,21 +64,11 @@ export function parseImport(bytes: Uint8Array, index: number):types.imports[]{
     //name parsing
     for (let i = 0; i < size; i++) {
         //module name (n (inSize) bytes)
-        let [inSize, inWidth] = lebToInt(bytes.slice(index, index+4));
-        index+= inWidth;
-        let module:types.namesVector = [inSize, ""];
-        for (let j = 0; j < inSize; j++){
-            module[1] = module[1].concat(String.fromCharCode(bytes[index+j]));
-        }
-        index += inSize;
+        let module:types.namesVector;
+        [module, index] = descParser.parseName(bytes, index);
         //function name (n (inSize) bytes)
-        [inSize, inWidth] = lebToInt(bytes.slice(index, index+4));
-        let name:types.namesVector = [inSize, ""];
-        index+= inWidth;
-        for (let j = 0; j < inSize; j++){
-            name[1] = name[1].concat(String.fromCharCode(bytes[index+j]));
-        }
-        index += inSize;
+        let name:types.namesVector;
+        [name, index] = descParser.parseName(bytes, index);
         //1 byte long, no encoding, importdesc
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
         // let desc:types.WASMSection<types.imports>;
@@ -163,6 +162,170 @@ export function parseExport(bytes: Uint8Array, index: number):types.exports[]{
     }
     return exportVec;
 }
+export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
+
+    const [size, width] = lebToInt(bytes.slice(index, index+4));
+    index+= width;
+    const elemVec = new Array(size);
+
+    for (let i = 0; i < size; i++) {
+        const [format, width] = lebToInt(bytes.slice(index, index+4));
+        index+= width;
+        switch(format){
+            default: throw new Error("Invalid element format identifier.");
+            case 0:
+                {
+                    // offset
+                    let offset:number[];
+                    [offset, index] = descParser.parseExpr(bytes, index);
+                    // vector of funcidx
+                    const [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const funcidxVec = new Array(size+1);
+                    for (let j = 0; j < size; j++) {
+                        const [funcidx, width] = lebToInt(bytes.slice(index, index+4));
+                        index+= width;
+                        funcidxVec[j] = funcidx;
+                    }
+                    funcidxVec.push(0x0B);
+
+                    elemVec[i] = {type:0x70, init:funcidxVec, mode:0x01, activemode: {table: 0, offset}}
+                    break;
+                }
+
+            case 1:
+                {
+                    // elemkind
+                    if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 1.");
+
+                    //vector of funcidx
+                    const [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const funcidxVec = new Array(size+1);
+                    for (let j = 0; j < size; j++) {
+                        const [funcidx, width] = lebToInt(bytes.slice(index, index+4));
+                        index+= width;
+                        funcidxVec[j] = funcidx;
+                    }
+                    funcidxVec.push(0x0B);
+
+                    elemVec[i] = {type: 0x00, init: funcidxVec, mode: 0x00}
+                }
+            case 2:
+                {
+                    // tableidx
+                    let [tableidx, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    let offset:number[];
+                    [offset, index] = descParser.parseExpr(bytes, index);
+                    // elemkind
+                    if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 2.");
+                    // vector of funcidx
+                    let size;
+                    [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const funcidxVec = new Array(size+1);
+                    for (let j = 0; j < size; j++) {
+                        const [funcidx, width] = lebToInt(bytes.slice(index, index+4));
+                        index+= width;
+                        funcidxVec[j] = funcidx;
+                    }
+                    funcidxVec.push(0x0B);
+
+                    elemVec[i] = {type: 0x00, init: funcidxVec, mode: 0x01, activemode: {table: tableidx, offset}}
+                }
+            case 3:
+                {
+                    // elemkind
+                    if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 3.");
+
+                    //vector of funcidx
+                    const [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const funcidxVec = new Array(size+1);
+                    for (let j = 0; j < size; j++) {
+                        const [funcidx, width] = lebToInt(bytes.slice(index, index+4));
+                        index+= width;
+                        funcidxVec[j] = funcidx;
+                    }
+                    funcidxVec.push(0x0B);
+
+                    elemVec[i] = {type: 0x00, init: funcidxVec, mode: 0x02}
+                }
+            case 4:
+                {
+                    // offset (expression)
+                    let offset:number[];
+                    [offset, index] = descParser.parseExpr(bytes, index);
+                    // vector of expressions
+                    const [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const exprVec = new Array(size);
+                    for (let j = 0; j < size; j++) {
+                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                    }
+
+                    elemVec[i] = {type:0x70, init:exprVec, mode:0x01, activemode: {table: 0, offset}}
+                }
+            case 5:
+                {
+                    // reftype
+                    if(bytes[index] != 0x70 && bytes[index] != 0x6F) throw new Error ("invalid reftype case 5.");
+                    const reftype = bytes[index];
+                    index++;
+                    // vector of expressions
+                    const [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const exprVec = new Array(size);
+                    for (let j = 0; j < size; j++) {
+                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                    }
+
+                    elemVec[i] = {type:reftype, init:exprVec, mode:0x00}
+                }
+            case 6:
+                {
+                    // tableidx
+                    let [tableidx, width] = lebToInt(bytes.slice(index, index+4));
+                    index += width;
+                    // offset (expression)
+                    let offset:number[];
+                    [offset, index] = descParser.parseExpr(bytes, index);
+                    // reftype
+                    if(bytes[index] != 0x70 && bytes[index] != 0x6F) throw new Error ("invalid reftype case 6.");
+                    const reftype = bytes[index];
+                    index++;
+                    // vector of expressions
+                    let size;
+                    [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const exprVec = new Array(size);
+                    for (let j = 0; j < size; j++) {
+                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                    }
+
+                    elemVec[i] = {type:reftype, init:exprVec, mode:0x01, activemode: {table: tableidx, offset}}
+                }
+            case 7:
+                {
+                    // reftype
+                    if(bytes[index] != 0x70 && bytes[index] != 0x6F) throw new Error ("invalid reftype case 7.");
+                    const reftype = bytes[index];
+                    index++;
+                    // vector of expressions
+                    const [size, width] = lebToInt(bytes.slice(index, index+4));
+                    index+= width;
+                    const exprVec = new Array(size);
+                    for (let j = 0; j < size; j++) {
+                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                    }
+
+                    elemVec[i] = {type:reftype, init:exprVec, mode:0x02}
+                }
+        }
+    }
+    return elemVec;
+}
 
 export function parseCode(bytes: Uint8Array, index: number):types.code[]{
     const [functionCount, width] = lebToInt(bytes.slice(index, index+4));
@@ -172,7 +335,7 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
     for (let i = 0; i < functionCount; i++) {
         //size of the code
         let [functionSize, inWidth] = lebToInt(bytes.slice(index, index+4));
-        console.log("functionSize",functionSize);
+        // console.log("functionSize",functionSize);
         let codeSize = functionSize;
         index+=inWidth;
 
@@ -180,7 +343,7 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
         let oldIndex = index;
         let localCount = 0;
         [localCount, inWidth] = lebToInt(bytes.slice(index, index+4));
-        console.log("localCount", localCount)
+        // console.log("localCount", localCount)
         index+=inWidth; 
         let locals = new Array(localCount);
         for (let j = 0; j < localCount; j++) {
@@ -193,4 +356,62 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
         codeVec[i] = {codeSize, content:{locals, expr}};
     }
     return codeVec;
+}
+
+export function parseData(bytes: Uint8Array, index: number):types.data[]{
+    const [dataCount, width] = lebToInt(bytes.slice(index, index+4));
+    index+= width;
+    const dataVec = new Array(dataCount);
+
+    for (let i = 0; i < dataCount; i++) {
+        const [format, width] = lebToInt(bytes.slice(index, index+4));
+        index+= width;
+        switch(format){
+            default: throw new Error("Invalid element format identifier.");
+            case 0:
+                {
+                    // offset (expression)
+                    let offset:number[];
+                    [offset, index] = descParser.parseExpr(bytes, index);
+                    // bytes vec
+                    let [size, width] = lebToInt(bytes.slice(index, index+4));
+                    const bytesVec = new Array(size);
+                    for (let j = 0; j < size; j++) {
+                        bytesVec[j] = bytes[index];
+                        index++;
+                    }
+                    dataVec[i] = {init: bytesVec, mode: 0x01, activemode: {memory: 0, offset}}
+                }
+                case 1:
+                    {
+                        // bytes vec
+                        let [size, width] = lebToInt(bytes.slice(index, index+4));
+                        const bytesVec = new Array(size);
+                        for (let j = 0; j < size; j++) {
+                            bytesVec[j] = bytes[index];
+                            index++;
+                        }
+                        dataVec[i] = {init: bytesVec, mode: 0x00}
+                    }
+                case 2: 
+                    {
+                        // memidx
+                        let [memidx, width] = lebToInt(bytes.slice(index, index+4));
+                        index += width;
+                        // offset (expression)
+                        let offset:number[];
+                        [offset, index] = descParser.parseExpr(bytes, index);
+                        // bytes vec
+                        let size;
+                        [size, width] = lebToInt(bytes.slice(index, index+4));
+                        const bytesVec = new Array(size);
+                        for (let j = 0; j < size; j++) {
+                            bytesVec[j] = bytes[index];
+                            index++;
+                        }
+                        dataVec[i] = {init: bytesVec, mode: 0x01, activemode: {memory: memidx, offset}}
+                    }
+        }
+    }
+    return dataVec;
 }

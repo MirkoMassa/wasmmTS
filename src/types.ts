@@ -31,17 +31,19 @@ export type WASMSection<A> = {
 }
 
 //***to be defined***
+// CUSTOM SECTION [ID 00]
+export type custom = {
+    name: namesVector,
+    bytes: number[]
 
+}
 // TYPE SECTION [ID 01]
-
 //payload of function signatures
 export type funcType = {
     parameters:bytesVector,
     returns:bytesVector
 }
-
 // IMPORT SECTION [ID 02]
-
 // vector of imports
 // (import "module_name" "function_name" (func ...)) <== that's an import in .wat format
 export type imports = {
@@ -59,11 +61,25 @@ export type exports = {
     name:namesVector,
     description: descTypes
 }
+// ELEMENT SECTION [ID 09]
+export type elem = {
+    type: refType,
+    init: number[],
+    mode: elemmode,
+    activemode: {table: number, offset: number[]} | null // just for active elemmode
+}
 
 // CODE SECTION [ID 10]
 export type code = {
     codeSize: number,
     content: funcComponent
+}
+
+// DATA SECTION [ID 11]
+export type data = {
+    init: number[],
+    mode: elemmode,
+    activemode: {memory: number, offset: number[]} | null // just for active elemmode
 }
 
 // helper types
@@ -77,11 +93,13 @@ export type limits = { // also encoding for memory types
 }
 export type flag = 0x00 | 0x01; // 0 => min | 1 => min, max
 export type numType = 0x7F | 0x7E | 0x7D | 0x7C;
-export type refType = 0x70 | 0x6f;
+export type refType = funcref | externref;
+export type funcref = 0x70;
+export type externref = 0x6f;
 export type vecType = 0x7B;
 export type valType = numType | vecType | refType;
 export type descTypes = number | tableType | limits | globalType;
-
+export type elemmode = 0x00 | 0x01 | 0x02 // passive | active | declarative
 export type tableType = {
     et: refType, //element reference type
     lim: limits
