@@ -1,4 +1,5 @@
-enum Opcode {
+import { enumRange, logAsHex } from "./utils";
+export enum Opcode {
     // control instructions
     Unreachable = 0x00,
     Nop = 0x01,
@@ -189,13 +190,55 @@ enum Opcode {
     i64reinterpretf64 = 0xBD,
     f32reinterpreti32 = 0xBE,
     f64reinterpreti64 = 0xBF,
+
     i32extend8S = 0xC0,
     i32extend16S = 0xC1,
     i64extend8S = 0xC2,
     i64extend16S = 0xC3,
-    i64extend32S = 0xC4
+    i64extend32S = 0xC4,
 
-    //Vector instructions
+    prefixedFC = 0xFC, // and prefix
+    prefixedFD = 0xFD, // and prefix
+
 }
-// Range(x,y) //returns [x,...,y]
-// const onebyteOpcodes = new Set([...Range(0x80,0x90), Range(0x12,0x20)])
+
+export enum FCPrefixes{ // 0xFC
+    // table prefixes
+    tableInit = 12, // two idxes
+    elemDrop = 13,
+    tableCopy = 14, //two idxes
+    tableGrow = 15,
+    tableSize = 16,
+    tableFill = 17,
+
+    // numeric prefixes
+    i32truncSatF32s = 0,
+    i32truncSatF32u = 1,
+    i32truncSatF64s = 2,
+    i32truncSatF64u = 3,
+    i64truncSatF32s = 4,
+    i64truncSatF32u = 5,
+    i64truncSatF64s = 6,
+    i64truncSatF64u = 7,
+    memoryInst = 8,
+    dataDrop = 9,
+    memoryCopy = 10,
+    memoryFill = 11
+
+}
+export enum PrefixesVector{ // vectorInst = 0xFD
+
+}
+
+export const blockInstr = new Set(enumRange(0x02, 0x04, Opcode));
+
+export const singleByteInstr = new Set();
+singleByteInstr.add([0x00, 0x01, 0x0F, 0xD1, 0x1A, 0x1B]);
+singleByteInstr.add(enumRange(0x45, 0xC4, Opcode));
+
+export const idxInstr = new Set();
+idxInstr.add([0x0C, 0x0D, 0x10, 0xD2]);
+idxInstr.add(enumRange(0x20, 0x26, Opcode));
+
+export const memoryInstr = new Set(enumRange(0x28, 0x3E, Opcode));
+export const numericInstr = new Set([0x41, 0x42, 0x43, 0x44]);

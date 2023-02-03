@@ -1,9 +1,9 @@
 import  * as types from "./types";
 import  {WASMSectionID} from "./types";
-import {mimir} from "./debugging/sleep";
-import {decodeSignedLeb128 as lebToInt} from "./leb128ToInt"
+// import {mimir} from "./debugging/sleep";
+import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt"
 import * as bp from "./bodyParser";
-import * as descParser from "./helperParser";
+import * as helperParser from "./helperParser";
 
 // Generic classes
 export class WasmModule implements types.WASMModule {
@@ -136,7 +136,7 @@ export function parseSection(bytes: Uint8Array, index: number): [section: Sectio
         case WASMSectionID.WAExport: return [new ExportSection(sectionId, secSize, bp.parseExport(bytes, index+width)), width+index+secSize];
         case WASMSectionID.WAStart:{
             if(secSize == 0) return [new StartSection(sectionId, secSize, null), width+index]; // no content inside section Start
-            const [funcidx, idxwidth] = descParser.parseidx(bytes, index+width);
+            const [funcidx, idxwidth] = helperParser.parseidx(bytes, index+width);
             return [new StartSection(sectionId, secSize, funcidx), width+index+secSize];
         }
         case WASMSectionID.WAElement: return [new ElementSection(sectionId, secSize, bp.parseElement(bytes, index+width)), width+index+secSize];
@@ -144,7 +144,7 @@ export function parseSection(bytes: Uint8Array, index: number): [section: Sectio
         case WASMSectionID.WAData: return [new DataSection(sectionId, secSize, bp.parseData(bytes, index+width)), width+index+secSize];
         case WASMSectionID.WADataCount: {
             if(secSize == 0) return [new DataCountSection(sectionId, secSize, null), width+index];
-            const [integer, idxwidth] = descParser.parseidx(bytes, index+width);
+            const [integer, idxwidth] = helperParser.parseidx(bytes, index+width);
             return [new DataCountSection(sectionId, secSize, integer), width+index+secSize];
         }
         //0x0C 0x12 0x34

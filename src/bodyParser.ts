@@ -1,7 +1,7 @@
-import {decodeSignedLeb128 as lebToInt} from "./leb128ToInt";
+import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt";
+import {decodeSignedLeb128 as slebToInt} from "./leb128ToInt"
 import  * as types from "./types";
-import * as descParser from "./helperParser";
-import { table } from "console";
+import * as helperParser from "./helperParser";
 // export class ParsedBody{ //I guess I don't need that
 
 //     // count is the size of the vector, elements are the module components described here
@@ -16,7 +16,7 @@ export function parseCustomTemp(bytes: Uint8Array, index: number): boolean {
 
 // export function parseCustom(bytes: Uint8Array, index: number): types.custom[] {
 //     // name
-//     descParser.parseName(bytes, index);
+//     helperParser.parseName(bytes, index);
     
 // }
 
@@ -66,19 +66,19 @@ export function parseImport(bytes: Uint8Array, index: number):types.imports[]{
     for (let i = 0; i < size; i++) {
         //module name (n (inSize) bytes)
         let module:types.namesVector;
-        [module, index] = descParser.parseName(bytes, index);
+        [module, index] = helperParser.parseName(bytes, index);
         //function name (n (inSize) bytes)
         let name:types.namesVector;
-        [name, index] = descParser.parseName(bytes, index);
+        [name, index] = helperParser.parseName(bytes, index);
         //1 byte long, no encoding, importdesc
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
         // let desc:types.WASMSection<types.imports>;
         let desc:types.descTypes;
         switch(bytes[index]) {
-            case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
-            case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
-            case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
-            case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
+            case 0: [desc, index] = helperParser.parseidx(bytes, index+1); break;
+            case 1: [desc, index] = helperParser.parseTableType(bytes, index+1); break;
+            case 2: [desc, index] = helperParser.parseLimits(bytes, index+1); break;
+            case 3: [desc, index] = helperParser.parseGlobalType(bytes, index+1); break;
             default: throw new Error("Invalid description value.");
         }
         const parsedImport:types.imports = {module:module, name:name, description:desc};
@@ -106,7 +106,7 @@ export function parseTable(bytes: Uint8Array, index: number):types.tableType[]{
     let tabletypeVec = new Array(size);
     index+=width;
     for (let i = 0; i < size; i++) {
-        [tabletypeVec[i], index] = descParser.parseTableType(bytes, index);
+        [tabletypeVec[i], index] = helperParser.parseTableType(bytes, index);
     }
     return tabletypeVec;
 }
@@ -116,7 +116,7 @@ export function parseMemory(bytes: Uint8Array, index: number):types.limits[]{
     let memVec = new Array(size);
     index+=width;
     for (let i = 0; i < size; i++) {
-        [memVec[i], index] = descParser.parseLimits(bytes, index);
+        [memVec[i], index] = helperParser.parseLimits(bytes, index);
     }
     return memVec;
 }
@@ -127,9 +127,9 @@ export function parseGlobal(bytes: Uint8Array, index: number):types.global[]{
     index+=width;
     for (let i = 0; i < size; i++) {
         let gt:types.globalType;
-        [gt, index] = descParser.parseGlobalType(bytes, index);
-        let expr:number[];
-        [expr, index] = descParser.parseExpr(bytes, index, );
+        [gt, index] = helperParser.parseGlobalType(bytes, index);
+        let expr:helperParser.Op[];
+        [expr, index] = helperParser.parseExpr(bytes, index);
         globalVec[i] = {gt, expr};
     }
     return globalVec;
@@ -152,13 +152,13 @@ export function parseExport(bytes: Uint8Array, index: number):types.exports[]{
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
         let desc:types.descTypes;
         // switch(bytes[index]) {
-        //     case 0: [desc, index] = descParser.parseidx(bytes, index+1); break;
-        //     case 1: [desc, index] = descParser.parseTableType(bytes, index+1); break;
-        //     case 2: [desc, index] = descParser.parseLimits(bytes, index+1); break;
-        //     case 3: [desc, index] = descParser.parseGlobalType(bytes, index+1); break;
+        //     case 0: [desc, index] = helperParser.parseidx(bytes, index+1); break;
+        //     case 1: [desc, index] = helperParser.parseTableType(bytes, index+1); break;
+        //     case 2: [desc, index] = helperParser.parseLimits(bytes, index+1); break;
+        //     case 3: [desc, index] = helperParser.parseGlobalType(bytes, index+1); break;
         //     default: throw new Error("Invalid description value.");
         // }
-        [desc, index] = descParser.parseidx(bytes, index+1); //they are all indices
+        [desc, index] = helperParser.parseidx(bytes, index+1); //they are all indices
         exportVec[i] = {name:name, description:desc};
     }
     return exportVec;
@@ -177,8 +177,8 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
             case 0:
                 {
                     // offset
-                    let offset:number[];
-                    [offset, index] = descParser.parseExpr(bytes, index);
+                    let offset:helperParser.Op[];
+                    [offset, index] = helperParser.parseExpr(bytes, index);
                     // vector of funcidx
                     const [size, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
@@ -219,8 +219,8 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     let [tableidx, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
                     // offset
-                    let offset:number[];
-                    [offset, index] = descParser.parseExpr(bytes, index);
+                    let offset:helperParser.Op[];
+                    [offset, index] = helperParser.parseExpr(bytes, index);
 
                     // elemkind
                     if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 2.");
@@ -260,14 +260,14 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
             case 4:
                 {
                     // offset (expression)
-                    let offset:number[];
-                    [offset, index] = descParser.parseExpr(bytes, index);
+                    let offset:helperParser.Op[];
+                    [offset, index] = helperParser.parseExpr(bytes, index);
                     // vector of expressions
                     const [size, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
                     const exprVec = new Array(size);
                     for (let j = 0; j < size; j++) {
-                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                        [exprVec[j], index] = helperParser.parseExpr(bytes, index);
                     }
                     elemVec[i] = {type:0x70, init:exprVec, mode:0x01, activemode: {table: 0, offset}}
                     break;
@@ -283,7 +283,7 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     index+= width;
                     const exprVec = new Array(size);
                     for (let j = 0; j < size; j++) {
-                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                        [exprVec[j], index] = helperParser.parseExpr(bytes, index);
                     }
                     elemVec[i] = {type:reftype, init:exprVec, mode:0x00}
                     break;
@@ -294,8 +294,8 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     let [tableidx, width] = lebToInt(bytes.slice(index, index+4));
                     index += width;
                     // offset (expression)
-                    let offset:number[];
-                    [offset, index] = descParser.parseExpr(bytes, index);
+                    let offset:helperParser.Op[];
+                    [offset, index] = helperParser.parseExpr(bytes, index);
                     // reftype
                     if(bytes[index] != 0x70 && bytes[index] != 0x6F) throw new Error ("invalid reftype case 6.");
                     const reftype = bytes[index];
@@ -306,7 +306,7 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     index+= width;
                     const exprVec = new Array(size);
                     for (let j = 0; j < size; j++) {
-                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                        [exprVec[j], index] = helperParser.parseExpr(bytes, index);
                     }
 
                     elemVec[i] = {type:reftype, init:exprVec, mode:0x01, activemode: {table: tableidx, offset}}
@@ -323,7 +323,7 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     index+= width;
                     const exprVec = new Array(size);
                     for (let j = 0; j < size; j++) {
-                        [exprVec[j], index] = descParser.parseExpr(bytes, index);
+                        [exprVec[j], index] = helperParser.parseExpr(bytes, index);
                     }
 
                     elemVec[i] = {type:reftype, init:exprVec, mode:0x02}
@@ -355,12 +355,12 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
         if(localCount != 0){
             locals = new Array(localCount);
             for (let j = 0; j < localCount; j++) {
-                [locals[j], index] = descParser.parseLocals(bytes, index);
+                [locals[j], index] = helperParser.parseLocals(bytes, index);
             }
         }
         //expression
-        let expr:number[];
-        [expr, index] = descParser.parseExpr(bytes, index, codeSize-(index-oldIndex));
+        let expr:helperParser.Op[];
+        [expr, index] = helperParser.parseExpr(bytes, index, codeSize-(index-oldIndex));
 
         codeVec[i] = {codeSize, content:{locals, expr}};
     }
@@ -379,8 +379,8 @@ export function parseData(bytes: Uint8Array, index: number):types.data[]{
             case 0:
                 {
                     // offset (expression)
-                    let offset:number[];
-                    [offset, index] = descParser.parseExpr(bytes, index);
+                    let offset:helperParser.Op[];
+                    [offset, index] = helperParser.parseExpr(bytes, index);
                     // bytes vec
                     let [size, width] = lebToInt(bytes.slice(index, index+4));
                     index += width;
@@ -411,8 +411,8 @@ export function parseData(bytes: Uint8Array, index: number):types.data[]{
                         let [memidx, width] = lebToInt(bytes.slice(index, index+4));
                         index += width;
                         // offset (expression)
-                        let offset:number[];
-                        [offset, index] = descParser.parseExpr(bytes, index);
+                        let offset:helperParser.Op[];
+                        [offset, index] = helperParser.parseExpr(bytes, index);
                         // bytes vec
                         let size;
                         [size, width] = lebToInt(bytes.slice(index, index+4));

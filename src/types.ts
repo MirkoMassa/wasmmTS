@@ -1,5 +1,6 @@
 import * as bp from "./bodyParser";
 import * as parser from "./parser";
+import {Op} from "./helperParser";
 /*
 > one-byte section id
 > uint32 size of the contents, in bytes
@@ -74,6 +75,10 @@ export type code = {
     codeSize: number,
     content: funcComponent
 }
+export type block = {
+    bt:blockType,
+    expr:Op[]
+}
 
 // DATA SECTION [ID 11]
 export type data = {
@@ -98,8 +103,12 @@ export type funcref = 0x70;
 export type externref = 0x6f;
 export type vecType = 0x7B;
 export type valType = numType | vecType | refType;
+export const valTypeSet = new Set([0x7F, 0x7E, 0x7D, 0x7C, 0x7B, 0x70, 0x6f]); // used for blocktype parsing
+
 export type descTypes = number | tableType | limits | globalType;
 export type elemmode = 0x00 | 0x01 | 0x02 // passive | active | declarative
+export type blockType = 0x40 | valType | number;
+export type memarg = [number, number]; //align, offset
 export type tableType = {
     et: refType, //element reference type
     lim: limits
