@@ -3,9 +3,9 @@ import  * as types from "./types";
 import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt"
 import {decodeSignedLeb128 as slebToInt} from "./leb128ToInt"
 import * as op from "./opcodes"
-import {parseBlock, parseMemArg, parseNumber, parseFC} from "./instructionsParser"
+import {parseBlock, parseMemArg, parseNumber, parseFC, parseFD} from "./instructionsParser"
 import { logAsHex } from "./utils";
-import { arrayBuffer } from "stream/consumers";
+import * as assert from "assert";
 
 export function parseidx(bytes: Uint8Array, index: number): [number, number] { //thats literally a parse int
     const [id, width] = lebToInt(bytes.slice(index, index+4));
@@ -66,168 +66,161 @@ export function parseValType(bytes: Uint8Array, index: number):[types.valType, n
 
 export class Op {
     kind: string;
-    constructor(public id: op.Opcode, public args: number[] | number | Op[] | types.block | types.memarg | types.refType, public indexNum = 0) {
+    constructor(public id: op.Opcode, public args: number[] | number | Op[] | types.block | types.memarg | BigInt | [types.memarg, number] | types.refType, public indexNum = 0) {
         this.kind = op.Opcode[id];
     }
 }
 export class prefixedOp {
-    constructor(public id: op.Opcode, public kind: string, public args: number[] | number | types.memarg | [], public indexNum = 0) {}
+    constructor(public id: op.Opcode, public kind: string, public args: number[] | number | types.memarg | BigInt | [types.memarg, number] | [], public indexNum = 0) {}
 }
 
 export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):[Op[], number]{
     let expr: Op[] = [];
-    let i = 0;
+    let baseIndex = index;
     if(length!=0){
-        while(i < length){
-            if(op.singleByteInstr.has(bytes[index])){
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                index++;
-                i++;
-            } 
-            else if(op.blockInstr.has(bytes[index])){
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                const oldIndex = index;
-                let args:types.block;
-                [args, index] = parseBlock(bytes, index+1);
-                newOp.args = args;
-                i = i + (index - oldIndex);
-            }
-            else if (bytes[index] == 0x0E){
-                // vector of lableidx
-                let [size, width] = lebToInt(bytes.slice(index, index+4));
-                index+= width;
-                const lableidxVec = new Array(size+1);
-                    for (let j = 0; j < size; j++) {
-                        const [lableidx, width] = lebToInt(bytes.slice(index, index+4));
-                        index+= width;
-                        i+= width;
-                        lableidxVec[j] = lableidx;
-                    }
-                //single extra lableidx
-                let lableidx;
-                [lableidx, width] = lebToInt(bytes.slice(index, index+4));
-                index+= width;
-                i+= width;
-                const args = new Array(2);
-                args[0] = lableidxVec;
-                args[1] = lableidx;
-                const newOp = new Op(bytes[index], args, index);
-                expr.push(newOp);
-            }
-            else if (bytes[index] == 0x11){
-                //single typeidx
-                let [typeidx, width] = lebToInt(bytes.slice(index, index+4));
-                index+= width;
-                i+= width;
-                //single tableidx
-                let tableidx;
-                [tableidx, width] = lebToInt(bytes.slice(index, index+4));
-                index+= width;
-                i+= width;
-                const newOp = new Op(bytes[index], [typeidx, tableidx], index);
-                expr.push(newOp);
-            }
-            else if(bytes[index] == 0xD0){
-                // reftype
-                if(bytes[index] != 0x70 && bytes[index] != 0x6f) throw new Error("Invalid refType value.");
-                const t:types.refType = bytes[index] as types.refType;
-                const newOp = new Op(bytes[index], t, index);
-                expr.push(newOp);
-                i++;
-                index++;
-            }
-            else if(op.numericInstr.has(bytes[index])){
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                const oldIndex = index;
-                let args:number;
-                [args, index] = parseNumber(bytes, index);
-                newOp.args = args;
-                i = i + (index - oldIndex);
-            }
-            else if(op.memoryInstr.has(bytes[index])){
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                const oldIndex = index;
-                let args:types.memarg;
-                [args, index] = parseMemArg(bytes, index+1);
-                newOp.args = args;
-                i = i + (index - oldIndex);
-            }
-            else if(op.idxInstr.has(bytes[index])){
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                let idx:number;
-                [idx, index] = parseidx(bytes, index+1);
-                newOp.args = idx;
-                i++;
-            }
-            else if (bytes[index] == 0xFC){
-                let newOp:Op;
-                const oldIndex = index;
-                [newOp, index] = parseFC(bytes, index+1);
-                expr.push(newOp);
-                i = i + (index - oldIndex);
-            }
-            else{ // Temporary
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                index++;
-                i++;
-            }
-            
+        while(index < baseIndex+length){
+            console.log("CASE 1")
+            let op: Op;
+            let oldIndex = index;
+            [op, index] = parseInstruction(bytes, index);
+            console.log(op);
+            assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
+            expr.push(op);
         }
         if(bytes[index-1] !== 0x0B){
             console.warn("Invalid parsing expression array", expr);
             throw new Error(`Invalid expression (passed length). ${bytes[index]}`);
         }
     }
-
+        // while((length != 0 && i < length) || bytes[index] != 0x0B){
     else{
         // not explicit length of expression
         while(bytes[index] != 0x0B){
-            if(op.singleByteInstr.has(bytes[index])){
-                expr.push(new Op(bytes[index], [], index));
-                index++;
-            }
-            else if(op.blockInstr.has(bytes[index])){ // (block | loop | if)
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                [newOp.args, index] = parseBlock(bytes, index+1);
-            } 
-            else if(op.numericInstr.has(bytes[index])){ // memarg
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                [newOp.args, index] = parseNumber(bytes, index+1);
-            }
-            else if(op.memoryInstr.has(bytes[index])){ // memarg
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                [newOp.args, index] = parseMemArg(bytes, index+1);
-            }
-            else if(op.idxInstr.has(bytes[index])){ // memarg
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                [newOp.args, index] = parseidx(bytes, index+1);
-            }
-            else if(bytes[index] == 0x05){ // else block
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                [newOp.args, index] = parseExpr(bytes, index+1);
-            }
-            else{ // default
-                const newOp = new Op(bytes[index], [], index);
-                expr.push(newOp);
-                index++;
-            }
-            i++;
+            console.log("CASE 2")
+            let op: Op;
+            let oldIndex = index;
+            [op, index] = parseInstruction(bytes, index);
+            console.log(op);
+            assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
+            expr.push(op);
         }
         if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
         index++;
     }
     return [expr, index];
+}
+
+export function parseInstruction(bytes: Uint8Array, index: number): [Op, number] {
+
+// Control Instructions and single idx (ref.func, variable instructions, table get and set)
+    if(op.blockInstr.has(bytes[index])){
+        const newOp = new Op(bytes[index], [], index);
+        let args:types.block;
+        [args, index] = parseBlock(bytes, index+1);
+        newOp.args = args;
+        return [newOp, index];
+    }
+    // else has non explicit length
+    else if(bytes[index] == op.Opcode.Else){
+        const newOp = new Op(bytes[index], [], index);
+        [newOp.args, index] = parseExpr(bytes, index+1);
+        return [newOp, index];
+    }
+    else if(op.idxInstr.has(bytes[index])){
+        const newOp = new Op(bytes[index], [], index);
+        let idx:number;
+        [idx, index] = parseidx(bytes, index+1);
+        newOp.args = idx;
+        return [newOp, index];
+    }
+    else if (bytes[index] == op.Opcode.BrTable){
+        index++;
+        // vector of lableidx
+        let [size, width] = lebToInt(bytes.slice(index, index+4));
+        index+= width;
+        const lableidxVec = new Array(size+1);
+        for (let j = 0; j < size; j++) {
+            const [lableidx, width] = lebToInt(bytes.slice(index, index+4));
+            index+= width;
+            lableidxVec[j] = lableidx;
+        }
+        //single extra lableidx
+        let lableidx;
+        [lableidx, width] = lebToInt(bytes.slice(index, index+4));
+        index+= width;
+        const args = new Array(2); // [number[], number]
+        args[0] = lableidxVec;
+        args[1] = lableidx;
+        return [new Op(op.Opcode.BrTable, args, index), index];
+    }
+    else if (bytes[index] == op.Opcode.CallIndirect){
+        index++;
+        //single typeidx
+        let [typeidx, width] = lebToInt(bytes.slice(index, index+4));
+        index+= width;
+        //single tableidx
+        let tableidx;
+        [tableidx, width] = lebToInt(bytes.slice(index, index+4));
+        index+= width;
+        return [new Op(op.Opcode.CallIndirect, [typeidx, tableidx], index), index];
+    }
+// Reference Instructions
+    else if(bytes[index] == op.Opcode.RefNull){
+        index++;
+        // reftype
+        if(bytes[index] != 0x70 && bytes[index] != 0x6f) throw new Error("Invalid refType value.");
+        const t:types.refType = bytes[index] as types.refType;
+        index++;
+        return [new Op(op.Opcode.RefNull, t, index), index];
+    }
+// Parametric Instructions
+    else if(bytes[index] == op.Opcode.SelectArgs){
+        index++;
+        // vector of valtypes
+        let [size, width] = lebToInt(bytes.slice(index, index+4));
+        index+= width;
+        const valtypeVec = new Array(size); // @review if size needs to be size+1
+        for (let j = 0; j < size; j++) {
+            let valtype:types.valType;
+            [valtype, index] = parseValType(bytes, index);
+            valtypeVec[j] = valtype;
+        }
+        return [new Op(op.Opcode.Select, valtypeVec, index), index];
+    }
+// Table and Memory Instructions with 0xFC
+    else if (bytes[index] == op.Opcode.prefixedFC){
+        return parseFC(bytes, index+1);
+    }
+// Memory Instructions
+    else if(op.memoryInstr.has(bytes[index])){
+        const newOp = new Op(bytes[index], [], index);
+        let args:types.memarg;
+        [args, index] = parseMemArg(bytes, index+1);
+        newOp.args = args;
+        return [newOp, index];
+    }
+    else if(bytes[index] == op.Opcode.memorySize || bytes[index] == op.Opcode.memoryGrow){
+        return [new Op(bytes[index], 0, index), index+1];
+    }
+// Numeric Instructions (and some more single bytes ones from other Instruction groups)
+    else if(op.numericInstr.has(bytes[index])){
+        const newOp = new Op(bytes[index], [], index);
+        let args:number;
+        [args, index] = parseNumber(bytes, index);
+        newOp.args = args;
+        console.log("args",newOp.args)
+        return [newOp, index];
+    }
+    else if(op.singleByteInstr.has(bytes[index])){
+        return [new Op(bytes[index], [], index), index+1];
+    } 
+// Vector Instructions
+    else if(bytes[index] == op.Opcode.prefixedFD){
+        return parseFD(bytes, index+1);
+    }
+    else{ // Temporary
+        return [new Op(bytes[index], [], index), index+1];
+    }
 }
 
 export function parseLocals(bytes: Uint8Array, index: number):[types.locals, number]{
@@ -246,4 +239,11 @@ export function parseName(bytes: Uint8Array, index: number):[types.namesVector, 
     }
     index+=size;
     return [name, index]; 
+}
+
+export function parsePrefix(bytes: Uint8Array, index: number):[string, number]{
+    const [prefix, width] = lebToInt(bytes.slice(index, index+4));
+    index+=width;
+    const opName = op.FCPrefixes[prefix];
+    return [opName, index];
 }

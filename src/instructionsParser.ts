@@ -30,10 +30,11 @@ return [{bt, expr}, index];
 }
 
 export function parseMemArg(bytes: Uint8Array, index: number):[types.memarg, number] {
-    const [align, width] = lebToInt(bytes.slice(index, index+4));
+    let width, align, offset;
+    [align, width] = lebToInt(bytes.slice(index, index+4));
     index += width;
-    const [offset, width2] = lebToInt(bytes.slice(index, index+4));
-    index += width2;
+    [offset, width] = lebToInt(bytes.slice(index, index+4));
+    index += width;
     // console.log("align offset and index",align, offset, index);
     return [[align, offset], index];
 }
@@ -41,6 +42,7 @@ export function parseFC(bytes: Uint8Array, index: number):[prefixedOp, number] {
     const [prefix, width] = lebToInt(bytes.slice(index, index+4));
     index+=width;
     const opName = op.FCPrefixes[prefix];
+
     switch(prefix){
         case 0:
         case 1:
@@ -49,26 +51,26 @@ export function parseFC(bytes: Uint8Array, index: number):[prefixedOp, number] {
         case 4:
         case 5:
         case 6:
-        case 7:{ 
+        case 7:{
             // numeric FC instructions (no args)
-            return [new prefixedOp(bytes[index-1], opName, []), index];
+            return [new prefixedOp(op.Opcode.prefixedFC, opName, []), index];
         }
         case 8:
         case 9:{ // memory init and data drop
             const [idx, width] = lebToInt(bytes.slice(index, index+4));
             index+=width;
             if(prefix == 8){
-                return [new prefixedOp(bytes[index-1], opName, [idx, 0x00]), index+1];
+                return [new prefixedOp(op.Opcode.prefixedFC, opName, [idx, 0x00]), index+1];
             }
-            return [new prefixedOp(bytes[index-1], opName, idx), index];
+            return [new prefixedOp(op.Opcode.prefixedFC, opName, idx), index];
         }
         case 10:{ // memory.copy (two 0 bytes)
             if(bytes[index] != 0x00 && bytes[index+1] != 0x00) throw new Error("Invalid args.");
-            return [new prefixedOp(bytes[index-1], opName, [0x00, 0x00]), index+2];
+            return [new prefixedOp(op.Opcode.prefixedFC, opName, [0x00, 0x00]), index+2];
         }
         case 11:{ // memory.fill (one 0 byte)
             if(bytes[index] != 0x00) throw new Error("Invalid args.");
-            return [new prefixedOp(bytes[index-1], opName, 0x00), index+1];
+            return [new prefixedOp(op.Opcode.prefixedFC, opName, 0x00), index+1];
         }
         case 13:
         case 15:
@@ -77,7 +79,7 @@ export function parseFC(bytes: Uint8Array, index: number):[prefixedOp, number] {
             // table FC instructions single idx
             const [idx, width] = lebToInt(bytes.slice(index, index+4));
             index+=width;
-            return [new prefixedOp(bytes[index-1], opName, idx), index];
+            return [new prefixedOp(op.Opcode.prefixedFC, opName, idx), index];
         }
         case 12:
         case 14:{
@@ -89,25 +91,82 @@ export function parseFC(bytes: Uint8Array, index: number):[prefixedOp, number] {
             [idx, width] = lebToInt(bytes.slice(index, index+4));
             index+=width;
             args.push(idx);
-            return [new prefixedOp(bytes[index-1], opName, args), index];
+            return [new prefixedOp(op.Opcode.prefixedFC, opName, args), index];
         }
         default: throw new Error("Invalid prefix.")
     }
     
 }
+
+export function parseFD(bytes: Uint8Array, index: number):[prefixedOp, number] {
+    const [prefix, width] = lebToInt(bytes.slice(index, index+4));
+    index+=width;
+    const opName = op.FCPrefixes[prefix];
+
+    if(op.vectorInstrNoArgs.has(prefix)){
+        return [new prefixedOp(op.Opcode.prefixedFD, opName, []), index];
+    }
+    else if(op.vectorInstrMemarg.has(prefix)){
+        // mem Argument
+        let memArg:types.memarg;
+        [memArg, index] = parseMemArg(bytes, index);
+        return [new prefixedOp(op.Opcode.prefixedFD, opName, memArg), index];
+    }
+    else if(op.vectorInstrTwoArgs.has(prefix)){
+        // mem Argument
+        let memArg:types.memarg;
+        [memArg, index] = parseMemArg(bytes, index);
+        // laneidx
+        let laneidx;
+        [laneidx, index] = helperParser.parseidx(bytes, index);
+        return [new prefixedOp(op.Opcode.prefixedFD, opName, [memArg, laneidx]), index];
+    }
+    else if(op.vectorInstrLaneidx.has(prefix)){
+        // laneidx
+        let laneidx;
+        [laneidx, index] = helperParser.parseidx(bytes, index);
+        return [new prefixedOp(op.Opcode.prefixedFD, opName, laneidx), index];
+    }
+    else if(prefix == op.PrefixesVectorArgs.v128Const){
+        // 16 bytes as a i128 signed integer
+        let arg;
+        [arg, index] = parseInteger128(bytes, index+1)
+        return [new prefixedOp(op.Opcode.prefixedFD, opName, arg), index];
+    }
+    else if(prefix == op.PrefixesVectorArgs.i8x16Shuffle){
+        // 16 bytes immediates laneidx
+        const args = new Array(16);
+        for (let i = 0; i < 16; i++) {
+            let laneidx;
+            [laneidx, index] = helperParser.parseidx(bytes, index);
+            args[i] = laneidx;
+        }
+        return [new prefixedOp(op.Opcode.prefixedFD, opName, args), index];
+    }
+    
+    else throw new Error("Invalid prefix.")
+}
+
 export function parseNumber(bytes: Uint8Array, index: number):[number, number] {
     switch(bytes[index]){
-        case 0x41:
+        case 0x41:{
+            index++;
+            const [num, width] = lebToInt(bytes.slice(index, index+4));
+            return [num, index+width];
+        }
         case 0x42:{
+            index++;
             const [num, width] = slebToInt(bytes.slice(index, index+4));
             return [num, index+width];
         }
         case 0x43:{
-            const num =parseFloat32(bytes.slice(index, index+4));
+            index++;
+            const num = parseFloat32(bytes.slice(index, index+4));
             return [num, index+4];
         }
         case 0x44:{
-            const num = parseFloat64(bytes.slice(index, index+4));
+            index++;
+            const num = parseFloat64(bytes.slice(index, index+8));
             return [num, index+8];
         }
         default: throw new Error ("Invalid number type.")
@@ -191,4 +250,13 @@ export function parseFloat64(bytes: Uint8Array): number {
         result *= -1;
     }
     return result;
+}
+
+export function parseInteger128(bytes: Uint8Array, index:number):[BigInt, number]{
+    let value = 0n;
+    for(let i=0; i < 16; i++) {
+        value = value | (BigInt(bytes[i]) << BigInt(8*i));
+    }
+    index+=16;
+    return [value, index];
 }
