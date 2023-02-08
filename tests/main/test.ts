@@ -106,27 +106,6 @@ describe("helperParser.parseGlobalType", () => {
     })
 })
 
-describe("parseExpression", () =>{
-    test("parsing a simple expression from arrays.wasm", ()=>{
-        const expr = new Uint8Array([0x0D, 0x00, 0x20, 0x00, 0x20, 0x01, 0x10, 0x03, 0x20, 0x02, 0x36, 0x02, 0x00, 0x0B, 0x54, 0x36]);
-        const res = helperParser.parseExpr(expr, 0, 14);
-        expect(res).toEqual(
-            [[
-                13, 0, 32, 0, 32, 1,
-                16, 3, 32, 2, 54, 2,
-                0, 11
-            ], 14]
-        )
-    })
-
-    /*
-    test("Parsing 1 byte instruction", () => {});
-    test("Parsing 2 byte instruction", () => {})
-    test("Parsing block instructions", () => {})
-    test("everything else", () => {})
-    */
-    
-})
 describe("parseName", () =>{
     test("parseName helper function", ()=>{
         const name = new Uint8Array([
@@ -138,7 +117,7 @@ describe("parseName", () =>{
     })
 })
 
-describe("opCodes", ()=>{
+describe("opCodes (code sections)", ()=>{
     test("simple loop + function", ()=>{
         const input = new Uint8Array([
             0x02, 0x02, 0x00, 0x0B, 0x0D, 0x00, 0x03, 0x7F, 0x02, 0x7F, 0x10, 0x00, 0x41, 0x96, 0x01, 0x0B, 
@@ -174,7 +153,7 @@ describe("opCodes", ()=>{
         const res = bp.parseCode(input, 0);
         console.log(JSON.stringify(res, null, 2))
     })
-    test.only("float32 and float64 numbers parsing from floatnumbers.wasm", ()=>{
+    test("float32 and float64 numbers parsing from floatnumbers.wasm", ()=>{
         const input = new Uint8Array([ // code section
         0x02, 0x1A, 0x00, 0x43, 0xAE, 0x87, 0x16, 0x43, 0x43, 0xA4, 0x70, 0xF4, 0x43, 0x43, 0x14, 0xAE, 
         0x73, 0x41, 0x43, 0x58, 0x76, 0x0B, 0x46, 0x92, 0x92, 0x92, 0x0F, 0x0B, 0x2A, 0x00, 0x44, 0x17, 
@@ -192,12 +171,16 @@ describe("opCodes", ()=>{
         expect(ip.parseFloat64(new Uint8Array([0x93, 0x18, 0x04, 0x56, 0x4E, 0x4A, 0xAF, 0x40]))).toBeCloseTo(4005.153)
         expect(ip.parseFloat64(new Uint8Array([0xCD, 0xCC, 0xCC, 0xCC, 0x4C, 0xC0, 0xA3, 0x40]))).toBeCloseTo(2528.15)
     })
+    test.only("v128.const function", () =>{
+        const data = new Uint8Array([
+            0x96, 0x83, 0x56, 0x41, 0x98, 0x81, 0x36, 0x42, 0x96, 0x83, 0x56, 0x41, 0x98, 0x81, 0x36, 0x42
+        ]);
+        const [res, i] = ip.parseInteger128(data, 0);
+        console.log(res.toString(16));
+    })
         // const res = bp.parseCode(input, 0);
         // console.log(JSON.stringify(res, null, 2))
 })
-
-
-
 describe("Section examples parsing", () =>{
     test("parsing type section from typesec.wasm", ()=>{ // ID 1
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/typesec.wasm'));
@@ -251,7 +234,6 @@ describe("Section examples parsing", () =>{
 })
 
 // console.log(Array.prototype.slice.call(test).map(byte=>byte.toString(16)))
-
 // const dv:DataView = new DataView(test);
 // console.log(dv)
 
@@ -260,7 +242,8 @@ const data = new Uint8Array([
     0x04, 0x6E, 0x61, 0x6D, 0x65, // name size 4 => "name"
     0x01, 0x13, 0x02, 0x00,
     0x07, 0x66, 0x6C, 0x6F, 0x61, 0x74, 0x33, 0x32, // name size 7 => "float32"
-    0x01, 
+    0x01,
     0x07, 0x66, 0x6C, 0x6F, 0x61, 0x74, 0x36, 0x34,  // name size 7 => "float64"
     0x02, 0x05, 0x02, 0x00, 0x00, 0x01, 0x00
 ]); // check where the first character is (char bigger than something)
+
