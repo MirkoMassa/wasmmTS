@@ -171,7 +171,7 @@ describe("opCodes (code sections)", ()=>{
         expect(ip.parseFloat64(new Uint8Array([0x93, 0x18, 0x04, 0x56, 0x4E, 0x4A, 0xAF, 0x40]))).toBeCloseTo(4005.153)
         expect(ip.parseFloat64(new Uint8Array([0xCD, 0xCC, 0xCC, 0xCC, 0x4C, 0xC0, 0xA3, 0x40]))).toBeCloseTo(2528.15)
     })
-    test.only("v128.const function", () =>{
+    test("v128.const function", () =>{
         const data = new Uint8Array([
             0x96, 0x83, 0x56, 0x41, 0x98, 0x81, 0x36, 0x42, 0x96, 0x83, 0x56, 0x41, 0x98, 0x81, 0x36, 0x42
         ]);
@@ -204,6 +204,10 @@ describe("Section examples parsing", () =>{
     })
     test("parse global section from globalsec.wasm", ()=>{ // ID 6
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/globalsec.wasm'));
+        console.log(JSON.stringify(parseModule(input), null, 2));
+    })
+    test.only("parse some globals from singleglobal.wasm", ()=>{ // ID 6
+        const input = new Uint8Array(fs.readFileSync('./tests/wasm/singleglobal.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
     test("parse export section from exportsec.wasm (every case)", ()=>{ // ID 7
@@ -246,4 +250,18 @@ const data = new Uint8Array([
     0x07, 0x66, 0x6C, 0x6F, 0x61, 0x74, 0x36, 0x34,  // name size 7 => "float64"
     0x02, 0x05, 0x02, 0x00, 0x00, 0x01, 0x00
 ]); // check where the first character is (char bigger than something)
+
+
+import * as WMTS from '../../src/exec/wasmm'
+
+test("parsing funcs and types from loop.wasm", async ()=>{
+    const input = fs.readFileSync('./tests/wasm/loop.wasm');
+    
+    const res = await WMTS.WebAssemblyMts.compile(input);
+})
+test("parsing table section from tablesec.wasm", async ()=>{
+    const input = fs.readFileSync('./tests/wasm/tablesec.wasm');
+    
+    const res = await WMTS.WebAssemblyMts.compile(input);
+})
 

@@ -1,7 +1,9 @@
 (module
-    (func $dummy)
+    (func $dummy (param $a i32)(param $b i32))
     (func $a (result i32)
         (loop (result i32) (block (result i32)
+            (i32.const 5)
+            (i32.const 15)
             (call $dummy) 
             (i32.const 150)
         ))
