@@ -79,11 +79,11 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
     let baseIndex = index;
     if(length!=0){
         while(index < baseIndex+length){
-            console.log("CASE 1")
+            // console.log("CASE 1")
             let op: Op;
             let oldIndex = index;
             [op, index] = parseInstruction(bytes, index);
-            console.log(op);
+            // console.log(op);
             assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
             expr.push(op);
         }
@@ -96,11 +96,11 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
     else{
         // not explicit length of expression
         while(bytes[index] != 0x0B){
-            console.log("CASE 2")
+            // console.log("CASE 2")
             let op: Op;
             let oldIndex = index;
             [op, index] = parseInstruction(bytes, index);
-            console.log(op);
+            // console.log(op);
             assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
             expr.push(op);
         }
@@ -208,7 +208,6 @@ export function parseInstruction(bytes: Uint8Array, index: number): [Op, number]
         let args:number;
         [args, index] = parseNumber(bytes, index);
         newOp.args = args;
-        console.log("args",newOp.args)
         return [newOp, index];
     }
     else if(op.singleByteInstr.has(bytes[index])){
