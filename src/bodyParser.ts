@@ -123,7 +123,7 @@ export function parseMemory(bytes: Uint8Array, index: number):types.limits[]{
 
 export function parseGlobal(bytes: Uint8Array, index: number):types.global[]{
     const [size, width] = lebToInt(bytes.slice(index, index+4));
-    let globalVec = new Array(size);
+    let globalVec:types.global[] = new Array(size);
     index+=width;
     for (let i = 0; i < size; i++) {
         let gt:types.globalType;

@@ -1,6 +1,8 @@
 import * as bp from "./bodyParser";
 import * as parser from "./parser";
 import {Op} from "./helperParser";
+
+
 /*
 > one-byte section id
 > uint32 size of the contents, in bytes
@@ -55,7 +57,7 @@ export type imports = {
 // GLOBAL SECTION [ID 06]
 export type global = {
     gt:globalType,
-    expr:number[]
+    expr:Op[]
 }
 // EXPORT SECTION [ID 07]
 export type exports = {
