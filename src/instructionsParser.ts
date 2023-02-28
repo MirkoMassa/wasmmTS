@@ -4,10 +4,10 @@ import  * as types from "./types";
 import * as helperParser from "./helperParser";
 import {prefixedOp} from "./helperParser";
 import { enumRange, logAsHex } from "./utils";
-import {Op} from "./helperParser";
+import {Op, BlockOp} from "./helperParser";
 import * as op from "./opcodes"
 
-export function parseBlock(bytes: Uint8Array, index: number):[types.block, number] {
+export function parseBlock(bytes: Uint8Array, index: number):[BlockOp, number] {
     // parse block type
     let bt:types.blockType;
     if(bytes[index] == 0x40){
@@ -26,7 +26,7 @@ export function parseBlock(bytes: Uint8Array, index: number):[types.block, numbe
     //parse inner expression
 let expr:Op[];
 [expr, index] = helperParser.parseExpr(bytes, index);
-return [{bt, expr}, index];
+return [new BlockOp(bt, expr, index), index];
 }
 
 export function parseMemArg(bytes: Uint8Array, index: number):[types.memarg, number] {

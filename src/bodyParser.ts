@@ -151,13 +151,6 @@ export function parseExport(bytes: Uint8Array, index: number):types.exports[]{
 
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
         let desc:types.descTypes;
-        // switch(bytes[index]) {
-        //     case 0: [desc, index] = helperParser.parseidx(bytes, index+1); break;
-        //     case 1: [desc, index] = helperParser.parseTableType(bytes, index+1); break;
-        //     case 2: [desc, index] = helperParser.parseLimits(bytes, index+1); break;
-        //     case 3: [desc, index] = helperParser.parseGlobalType(bytes, index+1); break;
-        //     default: throw new Error("Invalid description value.");
-        // }
         [desc, index] = helperParser.parseidx(bytes, index+1); //they are all indices
         exportVec[i] = {name:name, description:desc};
     }
@@ -338,7 +331,7 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
     const [functionCount, width] = lebToInt(bytes.slice(index, index+4));
     // console.log("functionount", functionCount)
     index+= width;
-    const codeVec = new Array(functionCount);
+    const codeVec:types.code[] = new Array(functionCount);
 
     for (let i = 0; i < functionCount; i++) {
         //size of the code
@@ -351,18 +344,18 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
         [localCount, inWidth] = lebToInt(bytes.slice(index, index+4));
         // console.log("localcount", localCount)
         index+=inWidth; 
-        let locals;
+        let locals:types.localsVal[] = [];
         if(localCount != 0){
             locals = new Array(localCount);
             for (let j = 0; j < localCount; j++) {
                 [locals[j], index] = helperParser.parseLocals(bytes, index);
             }
         }
-        //expression
-        let expr:helperParser.Op[];
-        [expr, index] = helperParser.parseExpr(bytes, index, codeSize-(index-oldIndex));
+        //expression (function body)
+        let body:helperParser.Op[];
+        [body, index] = helperParser.parseExpr(bytes, index, codeSize-(index-oldIndex));
 
-        codeVec[i] = {codeSize, content:{locals, expr}};
+        codeVec[i] = {codeSize, content:{locals, body}};
     }
     return codeVec;
 }

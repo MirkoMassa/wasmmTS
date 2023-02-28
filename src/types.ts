@@ -122,12 +122,18 @@ export type globalType = {
 }
 
 export type funcComponent = {
-    locals: locals[],
-    body: number[]
+    locals: localsVal[],
+    body: Op[]
 }
-export type locals = {
-    number: number,
+export type localsVal = {
+    value: number | bigint,
     type: valType
+}
+export type globalsVal = {
+
+    value: number | bigint
+    type: globalType,
+    
 }
 // 0x00:func, 0x01:table, 0x02:mem, 0x03:global
 // export type importDesc = 0x00 | 0x01 | 0x02 | 0x03

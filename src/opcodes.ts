@@ -1,5 +1,8 @@
 import { enumRange, logAsHex } from "./utils";
 export enum Opcode {
+    // labels and frames
+    Frame = 998,
+    Label = 999,
     // control instructions
     Unreachable = 0x00,
     Nop = 0x01,

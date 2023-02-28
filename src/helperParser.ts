@@ -66,13 +66,14 @@ export function parseValType(bytes: Uint8Array, index: number):[types.valType, n
 
 export class Op {
     kind: string;
-    constructor(public id: op.Opcode, public args: number[] | number | Op[] | types.block | types.memarg | BigInt | [types.memarg, number] | types.refType, public indexNum = 0) {
+    constructor(public id: op.Opcode, public args: number[] | number | Op[] | types.block | types.memarg | bigint | [types.memarg, number] | types.refType, public indexNum = 0) {
         this.kind = op.Opcode[id];
     }
 }
 export class prefixedOp {
-    constructor(public id: op.Opcode, public kind: string, public args: number[] | number | types.memarg | BigInt | [types.memarg, number] | [], public indexNum = 0) {}
+    constructor(public id: op.Opcode, public kind: string, public args: number[] | number | types.memarg | bigint | [types.memarg, number] | [], public indexNum = 0) {}
 }
+
 
 export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):[Op[], number]{
     let expr: Op[] = [];
@@ -110,17 +111,43 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
     return [expr, index];
 }
 
-export function parseInstruction(bytes: Uint8Array, index: number): [Op, number] {
+export class IfOp extends Op {
+    
+    constructor(public ifBlock: BlockOp, public elseBlock: BlockOp, public indexNum = 0) {
+        super(op.Opcode.If, [], indexNum)
+        this.id = op.Opcode.If;
+    }
+}
 
+export class BlockOp extends Op {
+    constructor(public bt: types.blockType, public expr: Op[], public indexNum = 0) {
+        super(op.Opcode.Block, [], indexNum)
+        this.id = op.Opcode.Block;
+    }
+}
+
+export function parseInstruction(bytes: Uint8Array, index: number): [Op, number] {
+// IF -> Block -> Label (op[]) taking the first elemt of op and shifting if off and executing
 // Control Instructions and single idx (ref.func, variable instructions, table get and set)
-    if(op.blockInstr.has(bytes[index])){
+    if(bytes[index] == op.Opcode.If){
+        let ifBlock: BlockOp;
+        const oldIndex = index;
+        [ifBlock, index] = parseBlock(bytes, index+1);
+        let ifElse = ifBlock.expr.find(x => x.id == op.Opcode.Else);
+        let elseBlock = new BlockOp(ifBlock.bt, []);
+        if (ifElse != undefined) {
+            ifBlock.expr = ifBlock.expr.filter(x => x != ifElse);
+        }
+        const newOp = new IfOp(ifBlock, elseBlock, oldIndex);
+        return [newOp, index];
+    }else if(op.blockInstr.has(bytes[index])){
         const newOp = new Op(bytes[index], [], index);
         let args:types.block;
         [args, index] = parseBlock(bytes, index+1);
         newOp.args = args;
         return [newOp, index];
     }
-    // else has non explicit length
+    // else 
     else if(bytes[index] == op.Opcode.Else){
         const newOp = new Op(bytes[index], [], index);
         [newOp.args, index] = parseExpr(bytes, index+1);
@@ -237,7 +264,7 @@ export function parseName(bytes: Uint8Array, index: number):[types.namesVector, 
         name[1] = name[1].concat(String.fromCharCode(bytes[index+i]));
     }
     index+=size;
-    return [name, index]; 
+    return [name, index];
 }
 
 export function parsePrefix(bytes: Uint8Array, index: number):[string, number]{
