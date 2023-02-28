@@ -1,12 +1,20 @@
-import { valType, namesVector, limits, tableType, globalType, refType } from "../types"
+import { valType, namesVector, limits, tableType, globalType, refType, funcType, funcComponent } from "../types"
 import { Op } from "../helperParser"
 import {WasmFuncType, WasmType} from "./wasmm"
-
+export enum ValTypeEnum {
+     i32 = 0x7F,
+     i64 = 0x7E,
+     f32 = 0x7D,
+     f64 = 0x7C,
+     funcref = 0x70,
+     externref = 0x6f,
+     vectype = 0x7B
+}
 // Instances
 export type FuncInst = {
     type: WasmFuncType,
     module: WebAssemblyMtsModule,
-    code: Op[]
+    code: funcComponent
 }
 export type TableInst = {
     type: tableType,
@@ -64,7 +72,7 @@ export type DataAddr = {
     val: number
 }
 export type ExportInst = {
-    name: namesVector,
+    valName: string,
     value: ExternVal
 }
 
@@ -79,19 +87,27 @@ export type WebAssemblyMtsModule = {
     datas: DataAddr[],
     exports: ExportInst[]
 }
+
+// export type ExportValue = {
+//     name: string,
+//     value: ExternVal
+// }
+export type WebAssemblyMtsInstance = {
+    exports: ExportInst[],
+    object: object | undefined
+}
 export type Store = {
     funcs: FuncInst[],
     tables: TableInst[],
     mems: MemInst[],
     globals: GlobalInst[],
-    
-    
-    // globals: 
-
 }
+
 export type WebAssemblyMtsInstantiatedSource = {
     module: WebAssemblyMtsModule,
-    instance: WebAssemblyMtsInstantiatedSource
+    instance: WebAssemblyMtsInstance
 }
+
+
 
 
