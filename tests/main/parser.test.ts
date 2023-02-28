@@ -117,7 +117,7 @@ describe("parseName", () =>{
     })
 })
 
-describe("opCodes (code sections)", ()=>{
+describe("opCodes", ()=>{
     test("simple loop + function", ()=>{
         const input = new Uint8Array([
             0x02, 0x02, 0x00, 0x0B, 0x0D, 0x00, 0x03, 0x7F, 0x02, 0x7F, 0x10, 0x00, 0x41, 0x96, 0x01, 0x0B, 
@@ -178,8 +178,12 @@ describe("opCodes (code sections)", ()=>{
         const [res, i] = ip.parseInteger128(data, 0);
         console.log(res.toString(16));
     })
-        // const res = bp.parseCode(input, 0);
-        // console.log(JSON.stringify(res, null, 2))
+    test("true-false with integers (parsing)", async () => {
+        const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/truefalse.wasm'));
+        console.log(JSON.stringify(parseModule(buffer), null, 2));
+    })
+
+    
 })
 describe("Section examples parsing", () =>{
     test("parsing type section from typesec.wasm", ()=>{ // ID 1
@@ -206,7 +210,7 @@ describe("Section examples parsing", () =>{
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/globalsec.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
-    test.only("parse some globals from singleglobal.wasm", ()=>{ // ID 6
+    test("parse some globals from singleglobal.wasm", ()=>{ // ID 6
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/singleglobal.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
@@ -222,7 +226,7 @@ describe("Section examples parsing", () =>{
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/elemsec.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
-    test("parsing the entire arrays.wasm (generic code section testing)", ()=>{ // ID 10
+    test.only("parsing the entire arrays.wasm (generic code section testing)", ()=>{ // ID 10
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/arrays.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
@@ -241,27 +245,13 @@ describe("Section examples parsing", () =>{
 // const dv:DataView = new DataView(test);
 // console.log(dv)
 
-const data = new Uint8Array([
-    0x00, 0x21, // section id and size
-    0x04, 0x6E, 0x61, 0x6D, 0x65, // name size 4 => "name"
-    0x01, 0x13, 0x02, 0x00,
-    0x07, 0x66, 0x6C, 0x6F, 0x61, 0x74, 0x33, 0x32, // name size 7 => "float32"
-    0x01,
-    0x07, 0x66, 0x6C, 0x6F, 0x61, 0x74, 0x36, 0x34,  // name size 7 => "float64"
-    0x02, 0x05, 0x02, 0x00, 0x00, 0x01, 0x00
-]); // check where the first character is (char bigger than something)
-
-
-import * as WMTS from '../../src/exec/wasmm'
-
-test("parsing funcs and types from loop.wasm", async ()=>{
-    const input = fs.readFileSync('./tests/wasm/loop.wasm');
-    
-    const res = await WMTS.WebAssemblyMts.compile(input);
-})
-test("parsing table section from tablesec.wasm", async ()=>{
-    const input = fs.readFileSync('./tests/wasm/tablesec.wasm');
-    
-    const res = await WMTS.WebAssemblyMts.compile(input);
-})
+// const data = new Uint8Array([
+//     0x00, 0x21, // section id and size
+//     0x04, 0x6E, 0x61, 0x6D, 0x65, // name size 4 => "name"
+//     0x01, 0x13, 0x02, 0x00,
+//     0x07, 0x66, 0x6C, 0x6F, 0x61, 0x74, 0x33, 0x32, // name size 7 => "float32"
+//     0x01,
+//     0x07, 0x66, 0x6C, 0x6F, 0x61, 0x74, 0x36, 0x34,  // name size 7 => "float64"
+//     0x02, 0x05, 0x02, 0x00, 0x00, 0x01, 0x00
+// ]); // check where the first character is (char bigger than something)
 
