@@ -22,8 +22,20 @@ describe("RunTest", ()=>{
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
         // const res = inst.test(5); //true
         const res = inst.test(0); //false
+        console.log(res);
+    })
+    test.only("if-else nested", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/ifelsenest.wasm');
+        // const tmodule = await WMTS.WebAssemblyMts.instantiate(buffer)
+        // console.log("exports",tmodule.instance.exports)
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        const res = inst.testnest(5, 0); //true, false
+        // const res = inst.testnest(0, 1); //false, true
+        console.log(res);
     })
 })
+
+
 describe("ops", ()=>{
     test("executeop", ()=>{
         const op = new Op(65, 0);

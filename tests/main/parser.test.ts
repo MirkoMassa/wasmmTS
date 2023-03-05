@@ -257,7 +257,7 @@ describe("Section examples parsing", () =>{
 // ]); // check where the first character is (char bigger than something)
 
 describe("MainParsing", ()=>{
-    test.only("main", ()=>{
+    test("main", ()=>{
         const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/ifelsenest.wasm'));
         console.log(JSON.stringify(parseModule(buffer), null, 2));
     })
