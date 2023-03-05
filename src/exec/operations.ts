@@ -4,7 +4,7 @@ import {Opcode} from "../opcodes"
 import { valType, localsVal } from '../types';
 import { FuncRef } from './types';
 import { ValTypeEnum } from './types'
-import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label } from './wasmm';
+import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, WebAssemblyMts } from './wasmm';
 // utils
 export function checkDualArityFn(x:Op, y:Op, opcode:Opcode) {
     if(x.id != opcode || y.id != opcode) 
@@ -75,13 +75,14 @@ export function processParams(arity:number, types: WasmType[], args: unknown[], 
 }
 
 export function executeBlock(block:BlockOp, moduleTypes:WasmFuncType[]){
-    // // if bt is the actual numType of the block
-    // if(isValType(block.bt)) return new Label(1, block.expr);
-    // // if bt is the index of moduleTypes (normal type reference)
-    // const blockTypes = moduleTypes[block.bt];
-    // return new Label(, block.expr);
-
-    
+    let label:Label;
+    // arity is the number of returns in this case
+    if(isValType(block.bt)){
+        label = new Label(1, block.expr);
+    }else{
+        label = new Label(moduleTypes[block.bt].returns.length, block.expr);
+    }
+    return WebAssemblyMts.executeInstructions(label, label.arity);
 }
 
 // OPERATIONS
@@ -371,7 +372,7 @@ export function f64ge(x:Op, y:Op) {
 
 export function ifinstr(bool: Op, ifop:IfElseOp, moduleTypes:WasmFuncType[]) {
     checkTypeOpcode(bool, Opcode.I32Const);
-    const block =  bool ? ifop.ifBlock : ifop.elseBlock;
+    const block =  bool.args ? ifop.ifBlock : ifop.elseBlock;
     return executeBlock(block!, moduleTypes);
 }
 

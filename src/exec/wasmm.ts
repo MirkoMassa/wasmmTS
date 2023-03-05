@@ -96,9 +96,6 @@ export function isExportInst(func: unknown): func is types.ExportInst {
 export function isFuncAddr(func: unknown): func is types.FuncAddr {
     return (func as types.FuncAddr).val !== undefined;
 }
-export function isLabel(func: unknown): func is Label {
-    return (func as Label).arity !== undefined;
-}
 
 
 //look from the top of the stack til you find a frame
@@ -122,7 +119,6 @@ export class WebAssemblyMtsStore implements types.Store {
     executeOp(op: Op | IfElseOp):void | Op[] {
         const len = this.stack.length;
         switch(op.id){
-
             case Opcode.Return:{
                 //Find the current Frame
                 let frame: Frame;
@@ -137,7 +133,7 @@ export class WebAssemblyMtsStore implements types.Store {
                 let returnArity = returns.length;
                 let results: Op[] = [];
                 //turn this into a check for type of the return values from returns (check from top of the stack until Frame)
-                if (this.stack.length < returnArity) throw new Error("Missing return values")
+                if (this.stack.length < returnArity) throw new Error("Missing return values");
                
                 //Maybe the following could be replaced with result = this.stack.slice(this.stack.length-returnArity);
                 for(let i = 0; i < returnArity; i++) {
@@ -152,7 +148,29 @@ export class WebAssemblyMtsStore implements types.Store {
                 this.stack.push(...results);
                 break;
             }
-            case Opcode.End: break;
+            // control instructions
+            case Opcode.If:{ // else is handled inside
+                
+                const frame = lookForFrame(this.stack);
+                const moduleTypes = frame.module.types;
+                // passing the boolean (constant numtype), the ifop (containing the block), the store and the module types reference
+                const blockRes = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes);
+                if(blockRes instanceof Op){
+                    // console.log("single",blockRes)
+                    this.stack.push(blockRes);
+                }else{
+                    // console.log("multi", blockRes)
+                 this.stack.push(...blockRes);
+                }
+                break;
+            }
+            case Opcode.Loop:{
+                // @todo
+                break;
+            }
+            case Opcode.End:{
+                break;
+            }
             // consts
             case Opcode.I32Const:
             case Opcode.I64Const:
@@ -161,7 +179,6 @@ export class WebAssemblyMtsStore implements types.Store {
                 this.stack.push(op)
                 break;
             }
-
             // math
             case Opcode.i32add:{
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
@@ -243,16 +260,6 @@ export class WebAssemblyMtsStore implements types.Store {
             case Opcode.f64div:{
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
                 this.stack.push(execute.f64div(this.stack.pop()!, this.stack.pop()!))
-                break;
-            }
-            // control instructions
-            case Opcode.If:{ // else is handled inside
-                
-                const frame = lookForFrame(this.stack);
-                const moduleTypes = frame.module.types;
-                // passing the boolean (constant numtype), the ifop (containing the block), the store and the module types reference
-                const blockLabel = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes);
-                console.log("block",blockLabel)
                 break;
             }
 
@@ -578,7 +585,18 @@ export class WebAssemblyMts {
             wmodule.exports.forEach(exp => {
                 if(exp.value.kind == "funcaddr"){
                     instantiatedSource.instance.exports[exp.valName] = (...args: any[]) => {
-                        return WebAssemblyMts.run(exp, ...args);
+                        const funcRes:Op | Op[] = WebAssemblyMts.run(exp, ...args);
+                        if(funcRes instanceof Op){
+                            return funcRes.args;
+                        }else{
+                            // console.log("func res",funcRes)
+                            const returns:parserTypes.valType[] = [];
+                            funcRes.forEach(op=> {
+                                returns.push(op.args as parserTypes.valType)
+                            });
+                            return returns;
+                        }
+                        
                     }
                 }
             })
@@ -600,25 +618,24 @@ export class WebAssemblyMts {
         throw new Error("Bad input data");
     }
 
-    static run(func:types.ExportInst, ...args: unknown[]):any;
-    static run(func:types.FuncAddr, ...args: unknown[]):any;
+    static run(funcorlabel:types.ExportInst, ...args: unknown[]):any;
+    static run(funcorlabel:types.FuncAddr, ...args: unknown[]):any;
 
-    static run(func:unknown, ...args: unknown[]){
+    static run(funcorlabel:unknown, ...args: unknown[]){
         let funcInstance:types.FuncInst;
         let funcAddress: number;
         let label:Label, frame:Frame;
-        if(isExportInst(func)){
-            funcAddress = func.value.val;
+        if(isExportInst(funcorlabel)){
+            funcAddress = funcorlabel.value.val;
             funcInstance = this.store.funcs[funcAddress];
-        }else if(isFuncAddr(func)){
-            funcAddress = func.val;
+        }else if(isFuncAddr(funcorlabel)){
+            funcAddress = funcorlabel.val;
             funcInstance = this.store.funcs[funcAddress];
         // }else if(isLabel(func)){
         }else{
             throw new Error("Bad function reference.")
         }
         // label (arity and code)
-
         label = new Label(funcInstance!.type.parameters.length, funcInstance!.code.body);
         // activation frame (locals and module)
         const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
@@ -626,35 +643,35 @@ export class WebAssemblyMts {
         const allLocals:parserTypes.localsVal[] = params.concat(locals);
         frame = new Frame(allLocals, funcInstance!.module, funcAddress!);
         this.store.stack.push(frame);
-        this.store.stack.push(label);
         execute.processParams(label.arity, funcInstance!.type.parameters, args, frame.locals);
-        
+        const returnsArity = funcInstance!.type.returns.length;
+        return this.executeInstructions(label, returnsArity);
+    }
+
+    static executeInstructions(label:Label, returnsArity:number):Op | Op[]{
+        this.store.stack.push(label);
         //with function calls I'll call the run method passing n args (popping values from the stack)
         label.instr.forEach(op => {
             // take n parameters (arity) from the call
             this.store.executeOp(op)
             label.instrIndex++;
+            // console.log("stackstatus ",this.store.stack);
         });
-        const returnsArity = funcInstance!.type.returns.length;
+        // console.log("stack",this.store.stack);
+        if(this.store.stack.length < returnsArity) throw new Error("Not enough return elements in the stack");
         if(returnsArity > 1){
-            const returns = [];
+            const res = [];
             for (let i = 0; i < returnsArity; i++) {
-                returns.push(this.store.stack.pop()?.args);
-                return returns;
+                res.push(this.store.stack.pop()!);
             }
+            // console.log("multires", res);
+            return res;
         }else{
-            return this.store.stack.pop()?.args;
+            // console.log("singleres", this.store.stack.pop());
+            return this.store.stack.pop()!;
         }
     }
-        
 }
-
-//declare is keyword in typescript to assert that a variable/function/object/class exists and is of type X;
-// declare let myModule: WebAssemblyMts;
-// let myExample = WebAssemblyMts.instantiate(myModule);
-// let importedBytes: ArrayBuffer = fs.readFileSync('./tests/wasm/arrays.wasm');
-// declare function execution(m: WebAssemblyMtsInstantiatedSource | WebAssemblyMtsInstance): void;
-
 
 
 
