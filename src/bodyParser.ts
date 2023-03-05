@@ -150,9 +150,12 @@ export function parseExport(bytes: Uint8Array, index: number):types.exports[]{
         index += inSize;
 
         if(bytes[index] != 0 && bytes[index] != 1 && bytes[index] != 2 && bytes[index] != 3) throw new Error("No description section on the import.");
-        let desc:types.descTypes;
-        [desc, index] = helperParser.parseidx(bytes, index+1); //they are all indices
-        exportVec[i] = {name:name, description:desc};
+        // exportdesc is a tuple containing the desc prefix and the idx
+        const desctype = bytes[index];
+        let idx:number; // actual idx
+        [idx, index] = helperParser.parseidx(bytes, index+1); //they are all indices
+        const exportdesc = [desctype, idx];
+        exportVec[i] = {name:name, exportdesc};
     }
     return exportVec;
 }

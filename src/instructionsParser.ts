@@ -4,10 +4,10 @@ import  * as types from "./types";
 import * as helperParser from "./helperParser";
 import {prefixedOp} from "./helperParser";
 import { enumRange, logAsHex } from "./utils";
-import {Op, BlockOp} from "./helperParser";
+import {Op, ElseOp, BlockOp, IfElseOp} from "./helperParser";
 import * as op from "./opcodes"
 
-export function parseBlock(bytes: Uint8Array, index: number):[BlockOp, number] {
+export function parseBlockType(bytes: Uint8Array, index: number):[types.blockType, number] {
     // parse block type
     let bt:types.blockType;
     if(bytes[index] == 0x40){
@@ -16,17 +16,32 @@ export function parseBlock(bytes: Uint8Array, index: number):[BlockOp, number] {
     } 
     else if(types.valTypeSet.has(bytes[index])){
         [bt, index] = helperParser.parseValType(bytes, index);
-        index++;
     }  
     else{
         let width;
         [bt, width] = slebToInt(bytes.slice(index, index+4));
         index+=width;
     }
-    //parse inner expression
-let expr:Op[];
-[expr, index] = helperParser.parseExpr(bytes, index);
-return [new BlockOp(bt, expr, index), index];
+    return [bt, index];
+}
+export function parseBlock(bytes: Uint8Array, index: number, bt:types.blockType):[BlockOp, number] {
+    let expr:Op[];
+    [expr, index] = helperParser.parseBlockExpr(bytes, index, bt);
+    return [new BlockOp(bt, expr, index), index];
+}
+
+export function parseIfBlock(bytes: Uint8Array, index: number, bt:types.blockType):[IfElseOp, number] {
+    let expr:Op[];
+    let ifb:BlockOp, elseb:ElseOp | undefined;
+    const oldIndex = index;
+    [expr, index] = helperParser.parseBlockExpr(bytes, index, bt);
+    ifb = new BlockOp(bt, expr, oldIndex);
+    ifb.id = op.Opcode.If;
+    // checking if there is an else block, array.find returns undefined otherwise
+    elseb = expr.find(elseb => elseb.id == op.Opcode.Else) as ElseOp;
+    console.log("filter",ifb.expr.filter(operation => operation != elseb))
+    if(elseb != undefined) ifb.expr = ifb.expr.filter(operation => operation != elseb);
+    return [new IfElseOp(ifb, elseb, oldIndex), index];
 }
 
 export function parseMemArg(bytes: Uint8Array, index: number):[types.memarg, number] {
@@ -252,7 +267,7 @@ export function parseFloat64(bytes: Uint8Array): number {
     return result;
 }
 
-export function parseInteger128(bytes: Uint8Array, index:number):[BigInt, number]{
+export function parseInteger128(bytes: Uint8Array, index:number):[bigint, number]{
     let value = 0n;
     for(let i=0; i < 16; i++) {
         value = value | (BigInt(bytes[i]) << BigInt(8*i));

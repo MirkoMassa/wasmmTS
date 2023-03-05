@@ -1,6 +1,6 @@
 import * as bp from "./bodyParser";
 import * as parser from "./parser";
-import {Op} from "./helperParser";
+import {BlockOp, Op} from "./helperParser";
 
 
 /*
@@ -79,7 +79,7 @@ export type code = {
 }
 export type block = {
     bt:blockType,
-    expr:Op[]
+    expr: BlockOp
 }
 
 // DATA SECTION [ID 11]

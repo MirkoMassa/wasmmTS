@@ -3,7 +3,7 @@ import  * as types from "./types";
 import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt"
 import {decodeSignedLeb128 as slebToInt} from "./leb128ToInt"
 import * as op from "./opcodes"
-import {parseBlock, parseMemArg, parseNumber, parseFC, parseFD} from "./instructionsParser"
+import {parseBlock, parseMemArg, parseNumber, parseFC, parseFD, parseBlockType, parseIfBlock} from "./instructionsParser"
 import { logAsHex } from "./utils";
 import * as assert from "assert";
 
@@ -13,7 +13,7 @@ export function parseidx(bytes: Uint8Array, index: number): [number, number] { /
 }
 export function parseTableType(bytes: Uint8Array, index: number):[types.tableType, number]{
 
-    // reftype
+    // reftype  
     if(bytes[index] != 0x70 && bytes[index] != 0x6f) throw new Error("Invalid refType value.");
     const et:types.refType = bytes[index] as types.refType;
     index++;
@@ -76,83 +76,84 @@ export class prefixedOp {
 
 
 export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):[Op[], number]{
+    // console.log("case 1");
     let expr: Op[] = [];
     let baseIndex = index;
-    if(length!=0){
-        while(index < baseIndex+length){
-            // console.log("CASE 1")
-            let op: Op;
-            let oldIndex = index;
-            [op, index] = parseInstruction(bytes, index);
-            // console.log(op);
-            assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
-            expr.push(op);
-        }
-        if(bytes[index-1] !== 0x0B){
-            console.warn("Invalid parsing expression array", expr);
-            throw new Error(`Invalid expression (passed length). ${bytes[index]}`);
-        }
+    while(index < baseIndex + length){
+        let op: Op;
+        let oldIndex = index;
+        [op, index] = parseInstruction(bytes, index);
+        // console.log(op);
+        assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
+        expr.push(op);
     }
-        // while((length != 0 && i < length) || bytes[index] != 0x0B){
-    else{
-        // not explicit length of expression
-        while(bytes[index] != 0x0B){
-            // console.log("CASE 2")
-            let op: Op;
-            let oldIndex = index;
-            [op, index] = parseInstruction(bytes, index);
-            // console.log(op);
-            assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
-            expr.push(op);
-        }
-        if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
-        index++;
+    if(bytes[index-1] !== 0x0B){
+        console.warn("Invalid parsing expression array", expr);
+        throw new Error(`Invalid expression (passed length). ${bytes[index]}`);
     }
+    
     return [expr, index];
 }
-
-export class IfOp extends Op {
+export function parseBlockExpr(bytes: Uint8Array, index: number, parentBlockType: types.blockType):[Op[], number]{
+    // not explicit length of expression (used for blocks)
+    // console.log("case 2");
+    let expr: Op[] = [];
+    while(bytes[index] != 0x0B){
+        let op: Op;
+        let oldIndex = index;
+        [op, index] = parseInstruction(bytes, index, parentBlockType);
+        assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
+        expr.push(op);
+    }
+    if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
+    index++;
+    console.log("expression", expr)
+    return [expr, index];
+}
+export class IfElseOp extends Op {
     
-    constructor(public ifBlock: BlockOp, public elseBlock: BlockOp, public indexNum = 0) {
+    constructor(public ifBlock: BlockOp, public elseBlock: BlockOp | undefined, public indexNum = 0) {
         super(op.Opcode.If, [], indexNum)
         this.id = op.Opcode.If;
     }
 }
-
 export class BlockOp extends Op {
     constructor(public bt: types.blockType, public expr: Op[], public indexNum = 0) {
         super(op.Opcode.Block, [], indexNum)
         this.id = op.Opcode.Block;
     }
 }
+export class ElseOp extends Op {
+    constructor(public bt: types.blockType, public expr: Op[], public indexNum = 0) {
+        super(op.Opcode.Else, [], indexNum)
+        this.id = op.Opcode.Else;
+    }
+}
 
-export function parseInstruction(bytes: Uint8Array, index: number): [Op, number] {
-// IF -> Block -> Label (op[]) taking the first elemt of op and shifting if off and executing
-// Control Instructions and single idx (ref.func, variable instructions, table get and set)
+export function parseInstruction(bytes: Uint8Array, index: number, parentBlockType?: types.blockType): [Op, number] {
+    // Control Instructions 
+    // console.log("current",bytes[index].toString(16))
     if(bytes[index] == op.Opcode.If){
-        let ifBlock: BlockOp;
-        const oldIndex = index;
-        [ifBlock, index] = parseBlock(bytes, index+1);
-        let ifElse = ifBlock.expr.find(x => x.id == op.Opcode.Else);
-        let elseBlock = new BlockOp(ifBlock.bt, []);
-        if (ifElse != undefined) {
-            ifBlock.expr = ifBlock.expr.filter(x => x != ifElse);
-        }
-        const newOp = new IfOp(ifBlock, elseBlock, oldIndex);
-        return [newOp, index];
-    }else if(op.blockInstr.has(bytes[index])){
-        const newOp = new Op(bytes[index], [], index);
-        let args:types.block;
-        [args, index] = parseBlock(bytes, index+1);
-        newOp.args = args;
-        return [newOp, index];
+        let blockType: types.blockType;
+        [blockType, index] = parseBlockType(bytes, index+1);
+        const IfBlock = parseIfBlock(bytes, index, blockType);
+        return IfBlock;
     }
-    // else 
     else if(bytes[index] == op.Opcode.Else){
-        const newOp = new Op(bytes[index], [], index);
-        [newOp.args, index] = parseExpr(bytes, index+1);
-        return [newOp, index];
+        if(parentBlockType == undefined) throw new Error ("No parent blocktype.");
+        // console.log("elsebt",parentBlockType)
+        let elseBlock:ElseOp;
+        [elseBlock, index] = parseBlock(bytes, index+1, parentBlockType);
+        elseBlock.id = op.Opcode.Else;
+        return [elseBlock, index];
     }
+    else if(bytes[index] == op.Opcode.Block || bytes[index] == op.Opcode.Loop){
+        let blockType:types.blockType;
+        [blockType, index] = parseBlockType(bytes, index+1);
+        return parseBlock(bytes, index, blockType);
+    }
+    
+    // single idx (ref.func, variable instructions, table get and set)
     else if(op.idxInstr.has(bytes[index])){
         const newOp = new Op(bytes[index], [], index);
         let idx:number;
@@ -249,12 +250,12 @@ export function parseInstruction(bytes: Uint8Array, index: number): [Op, number]
     }
 }
 
-export function parseLocals(bytes: Uint8Array, index: number):[types.locals, number]{
-    const [number, width] = lebToInt(bytes.slice(index, index+4));
+export function parseLocals(bytes: Uint8Array, index: number):[types.localsVal, number]{
+    const [value, width] = lebToInt(bytes.slice(index, index+4));
     index+=width;
     let valtype:types.valType;
     [valtype, index] = parseValType(bytes, index);
-    return [{number, type:valtype}, index];
+    return [{value, type:valtype}, index];
 }
 export function parseName(bytes: Uint8Array, index: number):[types.namesVector, number]{
     let [size, width] = lebToInt(bytes.slice(index, index+4));

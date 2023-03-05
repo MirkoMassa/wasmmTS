@@ -226,7 +226,7 @@ describe("Section examples parsing", () =>{
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/elemsec.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
-    test.only("parsing the entire arrays.wasm (generic code section testing)", ()=>{ // ID 10
+    test("parsing the entire arrays.wasm (generic code section testing)", ()=>{ // ID 10
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/arrays.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
@@ -255,3 +255,9 @@ describe("Section examples parsing", () =>{
 //     0x02, 0x05, 0x02, 0x00, 0x00, 0x01, 0x00
 // ]); // check where the first character is (char bigger than something)
 
+describe("MainParsing", ()=>{
+    test("main", ()=>{
+        const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/ifelsenest.wasm'));
+        console.log(JSON.stringify(parseModule(buffer), null, 2));
+    })
+})

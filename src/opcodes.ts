@@ -501,9 +501,6 @@ export enum PrefixesVector{ // vectorInst = 0xFD
     f64x2promoteLowf32x4 = 95
 }
 
-export const blockInstr = new Set();
-enumRange(0x02, 0x04, Opcode).forEach(hex =>blockInstr.add(hex));
-
 export const singleByteInstr = new Set([0x00, 0x01, 0x0F, 0xD1, 0x1A, 0x1B]);
 enumRange(0x45, 0xC4, Opcode).forEach(hex =>singleByteInstr.add(hex));
 

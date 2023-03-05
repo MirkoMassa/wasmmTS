@@ -109,7 +109,6 @@ enum Opcode : u8 {
 	Block = 0x02,
 	Loop = 0x03,
 	If = 0x04,
-	Else = 0x05,
 	End = 0x0B,
 	Br = 0x0C,
 	BrIf = 0x0D,
@@ -562,10 +561,6 @@ struct Op {
     if(op == Opcode::Block || op ==  Opcode::Loop || op == Opcode::If) {
        BlockType bt;
     }
-    if(op == Opcode::I32Const){
-    
-       u8 arg;
-    }
     if (op == Opcode::prefixedFC) {
         FCOpcode fcop;
     }
@@ -681,7 +676,6 @@ struct WASM {
 };
 
 WASM wasm @ 0x00;
-
 
 
 
