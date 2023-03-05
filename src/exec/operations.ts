@@ -1,9 +1,10 @@
 import { assert } from 'console';
-import { Op, IfOp } from '../helperParser';
+import { Op, IfElseOp, BlockOp } from '../helperParser';
 import {Opcode} from "../opcodes"
 import { valType, localsVal } from '../types';
+import { FuncRef } from './types';
 import { ValTypeEnum } from './types'
-import { WebAssemblyMtsStore, WasmType } from './wasmm';
+import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label } from './wasmm';
 // utils
 export function checkDualArityFn(x:Op, y:Op, opcode:Opcode) {
     if(x.id != opcode || y.id != opcode) 
@@ -14,7 +15,8 @@ export function checkTypeOpcode(x:Op, opcode:Opcode) {
     throw new Error (`Invalid number types expect (${Opcode[opcode]}) got [${Opcode[x.id]}]`);
 }
 export function checkValTypeAndOp(x:Op, y:valType){
-    if(x.id != y) 
+    const valToOp = convertValTypeToOpCode(y)
+    if(x.id != valToOp) 
     throw new Error (`Invalid valType expect (${ValTypeEnum[y]}) got [${Opcode[x.id]}]`);
 }
 export function convertValTypeToOpCode(vt:valType):Opcode{
@@ -27,13 +29,63 @@ export function convertValTypeToOpCode(vt:valType):Opcode{
         // case 0x6f: return //externref
         default: throw new Error ('Unexpected valType');
     }
-    
-    
-    
-    
-    
+}
+
+function isFuncRef(x: unknown): x is FuncRef {
+    // @ts-ignore
+    return typeof x == "object" && x != null && x.type !== undefined && x.type === 0x70;
+}
+function isValType(type: unknown): boolean{
+    switch(type){
+        case 0x7F:
+        case 0x7E:
+        case 0x7D:
+        case 0x7C:
+        case 0x70:
+        case 0x6f: 
+            return true;
+        default: return false;
+    }
+}
+
+export function processParams(arity:number, types: WasmType[], args: unknown[], locals:localsVal[]){
+    if(arity<args.length) throw new Error (`Unexpected number of parameters. Got ${args.length}, expected ${arity}.`);
+    for (let i = 0; i < args.length; i++) {
+        let currentArg = args[i];
+        if(typeof args[i] == "number") {
+            // i32 f32 f64
+            switch(types[i]){
+                case 'i32':
+                case 'f32':
+                case 'f64':
+                //All ok
+                locals[i].value = currentArg as number; break;
+                default: throw new Error();
+            }
+        }else if(typeof args[i] == "bigint") {
+            // i64
+            if(types[i] != 'i64') throw new Error();
+            locals[i].value = currentArg as bigint;
+
+        }else if(isFuncRef(currentArg)) {
+            if(types[i] != "funcref" && typeof types[i] !== "function") throw new Error();
+            // idk @todo
+        }
+    }
+}
+
+export function executeBlock(block:BlockOp, moduleTypes:WasmFuncType[]){
+    // // if bt is the actual numType of the block
+    // if(isValType(block.bt)) return new Label(1, block.expr);
+    // // if bt is the index of moduleTypes (normal type reference)
+    // const blockTypes = moduleTypes[block.bt];
+    // return new Label(, block.expr);
+
     
 }
+
+// OPERATIONS
+
 // math op
 export function i32add(x:Op, y:Op):Op{
     checkDualArityFn(x,y, Opcode.I32Const);
@@ -317,9 +369,10 @@ export function f64ge(x:Op, y:Op) {
 
 //control instruction
 
-export function ifinstr(bool: Op, ifop:IfOp) {
+export function ifinstr(bool: Op, ifop:IfElseOp, moduleTypes:WasmFuncType[]) {
     checkTypeOpcode(bool, Opcode.I32Const);
-    return bool ? ifop.ifBlock : ifop.elseBlock;
+    const block =  bool ? ifop.ifBlock : ifop.elseBlock;
+    return executeBlock(block!, moduleTypes);
 }
 
 // getters and setters

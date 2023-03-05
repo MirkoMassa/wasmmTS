@@ -332,7 +332,6 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
 
 export function parseCode(bytes: Uint8Array, index: number):types.code[]{
     const [functionCount, width] = lebToInt(bytes.slice(index, index+4));
-    // console.log("functionount", functionCount)
     index+= width;
     const codeVec:types.code[] = new Array(functionCount);
 

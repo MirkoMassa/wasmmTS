@@ -77,6 +77,7 @@ export class prefixedOp {
 
 export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):[Op[], number]{
     // console.log("case 1");
+    // console.log("PE", index, length)
     let expr: Op[] = [];
     let baseIndex = index;
     while(index < baseIndex + length){
@@ -97,17 +98,20 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
 export function parseBlockExpr(bytes: Uint8Array, index: number, parentBlockType: types.blockType):[Op[], number]{
     // not explicit length of expression (used for blocks)
     // console.log("case 2");
+    // console.log("BLOCK EXPR", index);
     let expr: Op[] = [];
     while(bytes[index] != 0x0B){
+        // console.log("current instr",bytes[index].toString(16), index)
         let op: Op;
         let oldIndex = index;
         [op, index] = parseInstruction(bytes, index, parentBlockType);
+        // console.log("INCREMENTED INDEX to", index);
         assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
         expr.push(op);
     }
     if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
     index++;
-    console.log("expression", expr)
+    // console.log("expression", expr)
     return [expr, index];
 }
 export class IfElseOp extends Op {
@@ -142,10 +146,9 @@ export function parseInstruction(bytes: Uint8Array, index: number, parentBlockTy
     else if(bytes[index] == op.Opcode.Else){
         if(parentBlockType == undefined) throw new Error ("No parent blocktype.");
         // console.log("elsebt",parentBlockType)
-        let elseBlock:ElseOp;
-        [elseBlock, index] = parseBlock(bytes, index+1, parentBlockType);
-        elseBlock.id = op.Opcode.Else;
-        return [elseBlock, index];
+        // [elseBlock, index] = parseBlock(bytes, index+1, parentBlockType);
+        // elseBlock.id = op.Opcode.Else;
+        return [new Op(op.Opcode.Else,[],index), index+1];
     }
     else if(bytes[index] == op.Opcode.Block || bytes[index] == op.Opcode.Loop){
         let blockType:types.blockType;

@@ -93,7 +93,7 @@ export type WebAssemblyMtsModule = {
 //     value: ExternVal
 // }
 export type WebAssemblyMtsInstance = {
-    exports: ExportInst[],
+    exports: {[key: string]:Function},
     object: object | undefined
 }
 export type Store = {
@@ -108,6 +108,4 @@ export type WebAssemblyMtsInstantiatedSource = {
     instance: WebAssemblyMtsInstance
 }
 
-
-
-
+export type FuncRef = {value: number, type:0x70};

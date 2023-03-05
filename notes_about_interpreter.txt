@@ -1,0 +1,42 @@
+https://webassembly.github.io/spec/js-api/index.html
+
+Define a custom WebAssemblyModule class
+-define optionally validate, compile
+-definitely define instantiate
+
+-memory will be defined as blocks of Uint8Array(64*1024) for each page requested
+-memory for code and for data should remain separate
+
+Inside of a WebAssemblyModule  you have a store and and a module instance
+https://webassembly.github.io/spec/core/exec/runtime.html#module-instances
+https://webassembly.github.io/spec/core/exec/runtime.html#store
+Where to start implementing execution
+
+Promises example
+
+// let example2 = WebAssemblyMts.instantiate(importedBytes);
+// example2.then((m)=> {
+//     execution(m)
+// })
+// example2.catch(someerr => {
+//     //handle error here;
+// })
+
+// var dm = new Promise((accept, reject) => {
+//     //imagine real work is done here and it succeeds go to accept
+//     //else reject
+//     if(true) {
+//         accept("You got it!");
+//     }else{
+//         reject(new Error("true is not true anymore!!"));
+//     }
+// })
+
+// async function doWork(m: Promise<WebAssemblyMtsInstantiatedSource>) {
+//     try {
+//         var mymodule = await m;
+//         execution(mymodule)
+//     } catch(fooerr) {
+//         console.error("caught error", fooerr);
+//     }
+// }

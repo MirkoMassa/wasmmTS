@@ -31,16 +31,22 @@ export function parseBlock(bytes: Uint8Array, index: number, bt:types.blockType)
 }
 
 export function parseIfBlock(bytes: Uint8Array, index: number, bt:types.blockType):[IfElseOp, number] {
+    // console.log("parseIf", bytes[index-1].toString(16), bytes[index].toString(16), bytes[index+1].toString(16));
     let expr:Op[];
     let ifb:BlockOp, elseb:ElseOp | undefined;
     const oldIndex = index;
     [expr, index] = helperParser.parseBlockExpr(bytes, index, bt);
+    // console.log("block expression",expr);
     ifb = new BlockOp(bt, expr, oldIndex);
     ifb.id = op.Opcode.If;
     // checking if there is an else block, array.find returns undefined otherwise
-    elseb = expr.find(elseb => elseb.id == op.Opcode.Else) as ElseOp;
-    console.log("filter",ifb.expr.filter(operation => operation != elseb))
-    if(elseb != undefined) ifb.expr = ifb.expr.filter(operation => operation != elseb);
+    var elseIndex = expr.findIndex(operation => operation.id == op.Opcode.Else);
+    if(elseIndex !== undefined) {
+
+        ifb.expr = expr.slice(0, elseIndex); 
+        elseb = new ElseOp(bt,expr.slice(elseIndex+1), oldIndex+elseIndex);
+    }
+    // console.log("filter",ifb.expr.filter(operation => operation != elseb))
     return [new IfElseOp(ifb, elseb, oldIndex), index];
 }
 

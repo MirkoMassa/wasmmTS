@@ -4,6 +4,7 @@ import  * as types from "../../src/types";
 import  {WASMSectionID} from "../../src/types";
 import {decodeUnsignedLeb128 as lebToInt} from "../../src/leb128ToInt"
 import * as bp from "../../src/bodyParser";
+import { parseCode } from "../../src/bodyParser";
 import * as helperParser from "../../src/helperParser";
 import * as ip from "../../src/instructionsParser";
 import fs from 'fs';
@@ -256,8 +257,17 @@ describe("Section examples parsing", () =>{
 // ]); // check where the first character is (char bigger than something)
 
 describe("MainParsing", ()=>{
-    test("main", ()=>{
+    test.only("main", ()=>{
         const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/ifelsenest.wasm'));
         console.log(JSON.stringify(parseModule(buffer), null, 2));
+    })
+    test("ifelsenest code section", ()=>{
+        const data = new Uint8Array([
+            0x01, 0x1A, 0x00, 0x20, 0x00, 0x04, 0x01, 0x20, 0x01, 0x04, 0x7F, 0x41, 0x04, 0x05, 
+            0x41, 0x02, 0x0B, 0x41, 0x07, 0x05, 0x41, 0x04, 0x41, 0x06, 0x0B, 0x6A, 0x0F, 0x0B
+        ]);
+        console.log(data.length)
+        const res = parseCode(data, 0);
+        console.log(res);
     })
 })

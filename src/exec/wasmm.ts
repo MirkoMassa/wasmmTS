@@ -4,19 +4,20 @@ import  * as types from "./types";
 import  * as parserTypes from "../types";
 import { ExportSection, parseModule }from "../parser";
 import { assert } from 'console';
-import { Op, IfOp } from '../helperParser';
+import { Op, IfElseOp } from '../helperParser';
 import { Opcode } from "../opcodes"
 import * as execute from "./operations"
+import { type } from 'os';
 export type WasmType = "i32" | "i64" | "f32" | "f64" | "funcref" | "externref" | "vectype";
 
 export class Label extends Op{
-    constructor(public arity:number, public instr: Op[]){
+    constructor(public arity:number, public instr: Op[], public instrIndex: number = 0){
         super(Opcode.Label, []);
     }
 }
 export class Frame extends Op{
-    constructor(public locals:parserTypes.localsVal[], public module:types.WebAssemblyMtsModule){
-        super(Opcode.Frame, [])
+    constructor(public locals:parserTypes.localsVal[], public module:types.WebAssemblyMtsModule, public currentFunc: number){
+        super(Opcode.Frame, []);
     }
 }
 
@@ -85,18 +86,32 @@ export class WasmFuncType {
 //     }
 // }
 
-function isWebAssemblyModule(data: unknown): data is types.WebAssemblyMtsModule {
+export function isWebAssemblyModule(data: unknown): data is types.WebAssemblyMtsModule {
     //runtime test of the data: if it is true assert something about the type of data to typescript
-    return (data as any).x == true;
+    return (data as types.WebAssemblyMtsModule).types !== undefined;
 }
-function isExportInst(func: unknown): func is types.ExportInst {
-    return (func as any).x == true;
+export function isExportInst(func: unknown): func is types.ExportInst {
+    return (func as types.ExportInst).valName !== undefined;
 }
-function isFuncAddr(func: unknown): func is types.FuncAddr {
-    return (func as any).x == true;
+export function isFuncAddr(func: unknown): func is types.FuncAddr {
+    return (func as types.FuncAddr).val !== undefined;
+}
+export function isLabel(func: unknown): func is Label {
+    return (func as Label).arity !== undefined;
 }
 
 
+//look from the top of the stack til you find a frame
+export function lookForFrame(stack:Op[]){
+    let frame: Frame;
+    for (let i = stack.length; i >= 0; i--) {
+        if(stack[i] instanceof Frame) {
+            frame = stack[i] as Frame;
+        }
+    }
+    if(frame! == undefined) throw new Error("No frame on stack found")
+    return frame;
+}
 
 export class WebAssemblyMtsStore implements types.Store {
     public stack: Op[];
@@ -104,16 +119,47 @@ export class WebAssemblyMtsStore implements types.Store {
         public globals: types.GlobalInst[]=[], public exports: types.ExportInst[]=[]) {
         this.stack = [];
     }
-    executeOp(op: Op | IfOp):void | Op[] {
+    executeOp(op: Op | IfElseOp):void | Op[] {
         const len = this.stack.length;
         switch(op.id){
 
+            case Opcode.Return:{
+                //Find the current Frame
+                let frame: Frame;
+                for (let i = this.stack.length; i >= 0; i--) {
+                    if(this.stack[i] instanceof Frame) {
+                        frame = this.stack[i] as Frame;
+                    }
+                }
+                if(frame! == undefined) throw new Error("No frame on stack found");
+                //get the number of return values
+                let returns = frame.module.types[frame.currentFunc].returns;
+                let returnArity = returns.length;
+                let results: Op[] = [];
+                //turn this into a check for type of the return values from returns (check from top of the stack until Frame)
+                if (this.stack.length < returnArity) throw new Error("Missing return values")
+               
+                //Maybe the following could be replaced with result = this.stack.slice(this.stack.length-returnArity);
+                for(let i = 0; i < returnArity; i++) {
+                    results.push(this.stack.pop()!);
+                }
+                do {
+                    this.stack.pop();
+                } while(!(this.stack[this.stack.length-1] instanceof Frame) || this.stack.length == 0)
+                assert(this.stack[this.stack.length-1] instanceof Frame, "No frame found") 
+                //pop the frame
+                this.stack.pop();
+                this.stack.push(...results);
+                break;
+            }
+            case Opcode.End: break;
             // consts
             case Opcode.I32Const:
             case Opcode.I64Const:
             case Opcode.F32Const:
             case Opcode.F64Const:{
                 this.stack.push(op)
+                break;
             }
 
             // math
@@ -201,7 +247,13 @@ export class WebAssemblyMtsStore implements types.Store {
             }
             // control instructions
             case Opcode.If:{ // else is handled inside
-                execute.ifinstr(this.stack.pop()!, op as IfOp);
+                
+                const frame = lookForFrame(this.stack);
+                const moduleTypes = frame.module.types;
+                // passing the boolean (constant numtype), the ifop (containing the block), the store and the module types reference
+                const blockLabel = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes);
+                console.log("block",blockLabel)
+                break;
             }
 
             // comparisons
@@ -351,18 +403,21 @@ export class WebAssemblyMtsStore implements types.Store {
             //getters and setters
             // local get/set
             case Opcode.SetLocal:{
-                const frame = this.stack[1] as Frame;
-                const localToSet:parserTypes.localsVal = frame.locals[this.stack.pop()?.args as number];
+                const frame = lookForFrame(this.stack);
+
+                const localToSet:parserTypes.localsVal = frame.locals[op.args as number];
                 execute.setLocal(localToSet, this.stack.pop()!);
             }
             case Opcode.GetLocal:{
-                const frame = this.stack[1] as Frame;
-                const localToGet:parserTypes.localsVal = frame.locals[this.stack.pop()?.args as number];
+                const frame = lookForFrame(this.stack);
+
+                const localToGet:parserTypes.localsVal = frame.locals[op.args as number];
                 this.stack.push(execute.getLocal(localToGet));
             }
             case Opcode.TeeLocal:{ // like set but keeping the const
-                const frame = this.stack[1] as Frame;
-                const localToSet:parserTypes.localsVal = frame.locals[this.stack.pop()?.args as number];
+                const frame = lookForFrame(this.stack);
+
+                const localToSet:parserTypes.localsVal = frame.locals[op.args as number];
                 const valToKeep = this.stack.pop();
                 this.stack.push(valToKeep!);
                 execute.setLocal(localToSet, valToKeep!);
@@ -389,10 +444,11 @@ export class WebAssemblyMtsStore implements types.Store {
 export class WebAssemblyMts {
     static store: WebAssemblyMtsStore;
     
-    static async compile(bytes:ArrayBuffer): Promise<types.WebAssemblyMtsModule> {
+    static async compile(bytes:Uint8Array): Promise<types.WebAssemblyMtsModule> {
         //call parser on the bytes
-        let [moduleTree, length] = parseModule(new Uint8Array(bytes));
-        assert(length == bytes.byteLength)
+        let [moduleTree, length] = parseModule(bytes);
+
+        assert(length == bytes.byteLength, "Module byte length error.");
         if(WebAssemblyMts.store == undefined) WebAssemblyMts.store = new WebAssemblyMtsStore();
         let mtsModule: types.WebAssemblyMtsModule = {
             types: [],
@@ -414,15 +470,17 @@ export class WebAssemblyMts {
         let dataSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAData)
         let exportSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAExport)
 
+
         for(let type of typesSection!.content) {
             mtsModule.types.push(new WasmFuncType(type));
         }
         // FuncInst
-        for(let index in functionSignatures?.content) {
+        const funcTypeSignatures = functionSignatures?.content;
+        for (let i = 0; i < funcTypeSignatures.length; i++) {
             let func:types.FuncInst= {
-                type: mtsModule.types[Number(index)],
+                type: mtsModule.types[funcTypeSignatures[i]],
                 module: mtsModule,
-                code: functionCodes?.content[index]
+                code: functionCodes?.content[i].content
             }
             let length = WebAssemblyMts.store.funcs.push(func)
             //every instance reference addrs is with respect to the store indices
@@ -430,6 +488,7 @@ export class WebAssemblyMts {
                 {kind: "funcaddr", val: length-1}
             )
         }
+            
         // TableInst
         
         //tables seems to be arrays of function references/functions
@@ -483,9 +542,19 @@ export class WebAssemblyMts {
         // ExportInst
 
         for(let index in exportSection?.content) {
+            // parsing the address type (exportdesc[0] is the desctype)
+            let value:types.ExternVal;
+            const exportdesc = exportSection?.content[index].exportdesc;
+            switch(exportdesc[0]){
+                case 0: value = {kind:"funcaddr", val: exportdesc[1]}; break;
+                case 1: value = {kind:"tableaddr", val: exportdesc[1]}; break;
+                case 2: value = {kind:"memaddr", val: exportdesc[1]}; break;
+                case 3: value = {kind:"globaladdr", val: exportdesc[1]}; break;
+                default: throw new Error(`Invalid export description type`);
+            }
             let exports:types.ExportInst= {
-                valName: exportSection?.content[index].name.bytes,
-                value: exportSection?.content[index].description
+                valName: exportSection?.content[index].name[1],
+                value
             }
             WebAssemblyMts.store.exports.push(exports)
             mtsModule.exports.push(exports)
@@ -497,63 +566,87 @@ export class WebAssemblyMts {
         //will return references/basically the index in the store for each object in the module.
     }
     static async instantiate(moduleMts: types.WebAssemblyMtsModule, importObject?: object): Promise<types.WebAssemblyMtsInstance>;
-    static async instantiate(bytes:ArrayBuffer, importObject?: object): Promise<types.WebAssemblyMtsInstantiatedSource>;
+    static async instantiate(bytes:Uint8Array, importObject?: object): Promise<types.WebAssemblyMtsInstantiatedSource>;
 
     static async instantiate(moduleOrBytes: unknown, importObject?: object): Promise<types.WebAssemblyMtsInstantiatedSource | types.WebAssemblyMtsInstance> {
         //import object is how many page of memory there are
-        if(moduleOrBytes instanceof ArrayBuffer) {
-            const module = await this.compile(moduleOrBytes);
-            const instance = await this.instantiate(module);
-            const instantiatedSource: types.WebAssemblyMtsInstantiatedSource =
-            {module, instance};
+        if(moduleOrBytes instanceof Uint8Array) {
+            const wmodule = await this.compile(moduleOrBytes);
+            const instance:types.WebAssemblyMtsInstance = {exports: {}, object: undefined};
+            const instantiatedSource: types.WebAssemblyMtsInstantiatedSource = {module: wmodule, instance};
+            
+            wmodule.exports.forEach(exp => {
+                if(exp.value.kind == "funcaddr"){
+                    instantiatedSource.instance.exports[exp.valName] = (...args: any[]) => {
+                        return WebAssemblyMts.run(exp, ...args);
+                    }
+                }
+            })
             return instantiatedSource;
 
         }else if(isWebAssemblyModule(moduleOrBytes)) {
-            // need to implement importobject            
-            
-            const instance:types.WebAssemblyMtsInstance = {
-                exports: this.store.exports,
-                object: undefined
-            }
-            return instance;
+            // need to implement importobject    
+            const instantiatedSource: types.WebAssemblyMtsInstantiatedSource =
+            {module: moduleOrBytes, instance:{exports: {}, object: undefined}};
+            moduleOrBytes.exports.forEach(exp => {
+                if(exp.value.kind == "funcaddr"){
+                    instantiatedSource.instance.exports[exp.valName] = (...args: any) => {
+                        return WebAssemblyMts.run(exp, ...args);
+                    }
+                }
+            })
+            return instantiatedSource;
         }
         throw new Error("Bad input data");
     }
 
-    static run(func:types.ExportInst):void;
-    static run(func:types.FuncAddr):void;
+    static run(func:types.ExportInst, ...args: unknown[]):any;
+    static run(func:types.FuncAddr, ...args: unknown[]):any;
 
-    static run(func:unknown):void{
+    static run(func:unknown, ...args: unknown[]){
         let funcInstance:types.FuncInst;
         let funcAddress: number;
+        let label:Label, frame:Frame;
         if(isExportInst(func)){
             funcAddress = func.value.val;
             funcInstance = this.store.funcs[funcAddress];
-        }else if (isFuncAddr(func)){
+        }else if(isFuncAddr(func)){
             funcAddress = func.val;
             funcInstance = this.store.funcs[funcAddress];
+        // }else if(isLabel(func)){
         }else{
             throw new Error("Bad function reference.")
         }
         // label (arity and code)
-        const label = new Label(funcInstance!.type.parameters.length, funcInstance!.code.body);
 
+        label = new Label(funcInstance!.type.parameters.length, funcInstance!.code.body);
         // activation frame (locals and module)
-        const params:parserTypes.localsVal[] = funcInstance.module.types[funcAddress].toInstantiation();
-        const locals:parserTypes.localsVal[] = funcInstance.code.locals;
+        const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
+        const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
         const allLocals:parserTypes.localsVal[] = params.concat(locals);
-
-        const frame = new Frame(allLocals, funcInstance!.module);
-        this.store.stack.push(label);
+        frame = new Frame(allLocals, funcInstance!.module, funcAddress!);
         this.store.stack.push(frame);
-
+        this.store.stack.push(label);
+        execute.processParams(label.arity, funcInstance!.type.parameters, args, frame.locals);
+        
+        //with function calls I'll call the run method passing n args (popping values from the stack)
         label.instr.forEach(op => {
             // take n parameters (arity) from the call
-            // execute operations
-            // return the expected type on top of the stack (where the label is)
             this.store.executeOp(op)
+            label.instrIndex++;
         });
+        const returnsArity = funcInstance!.type.returns.length;
+        if(returnsArity > 1){
+            const returns = [];
+            for (let i = 0; i < returnsArity; i++) {
+                returns.push(this.store.stack.pop()?.args);
+                return returns;
+            }
+        }else{
+            return this.store.stack.pop()?.args;
+        }
     }
+        
 }
 
 //declare is keyword in typescript to assert that a variable/function/object/class exists and is of type X;
