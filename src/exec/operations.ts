@@ -4,7 +4,7 @@ import {Opcode} from "../opcodes"
 import { valType, localsVal } from '../types';
 import { FuncRef } from './types';
 import { ValTypeEnum } from './types'
-import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, WebAssemblyMts } from './wasmm';
+import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, WebAssemblyMts, labelCount, lookForLabel } from './wasmm';
 // utils
 export function checkDualArityFn(x:Op, y:Op, opcode:Opcode) {
     if(x.id != opcode || y.id != opcode) 
@@ -72,17 +72,6 @@ export function processParams(arity:number, types: WasmType[], args: unknown[], 
             // idk @todo
         }
     }
-}
-
-export function executeBlock(block:BlockOp, moduleTypes:WasmFuncType[]){
-    let label:Label;
-    // arity is the number of returns in this case
-    if(isValType(block.bt)){
-        label = new Label(1, block.expr);
-    }else{
-        label = new Label(moduleTypes[block.bt].returns.length, block.expr);
-    }
-    return WebAssemblyMts.executeInstructions(label, label.arity);
 }
 
 // OPERATIONS
@@ -246,134 +235,199 @@ export function f64ne(x:Op, y:Op) {
 //lt
 export function i32lts(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(x.args<y.args) return new Op(Opcode.I32Const, 1)
+    if(y.args<x.args) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i64lts(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(x.args<y.args) return new Op(Opcode.I64Const, 1)
+    if(y.args<x.args) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function i32ltu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(Math.abs(x.args as number)<Math.abs(y.args as number)) return new Op(Opcode.I32Const, 1)
+    if(Math.abs(y.args as number)<Math.abs(x.args as number)) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i64ltu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(Math.abs(x.args as number)<Math.abs(y.args as number)) return new Op(Opcode.I64Const, 1)
+    if(Math.abs(y.args as number)<Math.abs(x.args as number)) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function f32lt(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F32Const);
-    if(x.args<y.args) return new Op(Opcode.F32Const, 1)
+    if(y.args<x.args) return new Op(Opcode.F32Const, 1)
     return new Op(Opcode.F32Const, 0);
 }
 export function f64lt(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F64Const);
-    if(x.args<y.args) return new Op(Opcode.F64Const, 1)
+    if(y.args<x.args) return new Op(Opcode.F64Const, 1)
     return new Op(Opcode.F64Const, 0);
 }
 //gt
 export function i32gts(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(x.args>y.args) return new Op(Opcode.I32Const, 1)
+    if(y.args>x.args) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i32gtu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(Math.abs(x.args as number)>Math.abs(y.args as number)) return new Op(Opcode.I32Const, 1)
+    if(Math.abs(y.args as number)>Math.abs(x.args as number)) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i64gts(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(x.args>y.args) return new Op(Opcode.I64Const, 1)
+    if(y.args>x.args) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function i64gtu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(Math.abs(x.args as number)>Math.abs(y.args as number)) return new Op(Opcode.I64Const, 1)
+    if(Math.abs(y.args as number)>Math.abs(x.args as number)) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function f32gt(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F32Const);
-    if(Math.abs(x.args as number)>(y.args as number)) return new Op(Opcode.F32Const, 1)
+    if(Math.abs(y.args as number)>(x.args as number)) return new Op(Opcode.F32Const, 1)
     return new Op(Opcode.F32Const, 0);
 }
 export function f64gt(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F64Const);
-    if(Math.abs(x.args as number)>(y.args as number)) return new Op(Opcode.F64Const, 1)
+    if(Math.abs(y.args as number)>(x.args as number)) return new Op(Opcode.F64Const, 1)
     return new Op(Opcode.F64Const, 0);
 }
 //le
 export function i32les(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(x.args<=y.args) return new Op(Opcode.I32Const, 1)
+    if(y.args<=x.args) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i32leu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(Math.abs(x.args as number)<=Math.abs(y.args as number)) return new Op(Opcode.I32Const, 1)
+    if(Math.abs(y.args as number)<=Math.abs(x.args as number)) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i64les(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(x.args<=y.args) return new Op(Opcode.I64Const, 1)
+    if(y.args<=x.args) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function i64leu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(Math.abs(x.args as number)<=Math.abs(y.args as number)) return new Op(Opcode.I64Const, 1)
+    if(Math.abs(y.args as number)<=Math.abs(x.args as number)) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function f32le(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F32Const);
-    if(x.args<=y.args) return new Op(Opcode.F32Const, 1)
+    if(y.args<=x.args) return new Op(Opcode.F32Const, 1)
     return new Op(Opcode.F32Const, 0);
 }
 export function f64le(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F64Const);
-    if(x.args<=y.args) return new Op(Opcode.F64Const, 1)
+    if(y.args<=x.args) return new Op(Opcode.F64Const, 1)
     return new Op(Opcode.F64Const, 0);
 }
 //ge
 export function i32ges(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(x.args>=y.args) return new Op(Opcode.I32Const, 1)
+    if(y.args>=x.args) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i32geu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I32Const);
-    if(Math.abs(x.args as number)>=Math.abs(y.args as number)) return new Op(Opcode.I32Const, 1)
+    if(Math.abs(y.args as number)>=Math.abs(x.args as number)) return new Op(Opcode.I32Const, 1)
     return new Op(Opcode.I32Const, 0);
 }
 export function i64ges(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(x.args>=y.args) return new Op(Opcode.I64Const, 1)
+    if(y.args>=x.args) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function i64geu(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.I64Const);
-    if(Math.abs(x.args as number)>=Math.abs(y.args as number)) return new Op(Opcode.I64Const, 1)
+    if(Math.abs(y.args as number)>=Math.abs(x.args as number)) return new Op(Opcode.I64Const, 1)
     return new Op(Opcode.I64Const, 0);
 }
 export function f32ge(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F32Const);
-    if(x.args>=y.args) return new Op(Opcode.F32Const, 1)
+    if(y.args>=x.args) return new Op(Opcode.F32Const, 1)
     return new Op(Opcode.F32Const, 0);
 }
 export function f64ge(x:Op, y:Op) {
     checkDualArityFn(x,y, Opcode.F64Const);
-    if(x.args>=y.args) return new Op(Opcode.F64Const, 1)
+    if(y.args>=x.args) return new Op(Opcode.F64Const, 1)
     return new Op(Opcode.F64Const, 0);
 }
 
 //control instruction
 
-export function ifinstr(bool: Op, ifop:IfElseOp, moduleTypes:WasmFuncType[]) {
+export function ifinstr(bool: Op, ifop:IfElseOp, moduleTypes:WasmFuncType[], stack:Op[]) {
     checkTypeOpcode(bool, Opcode.I32Const);
     const block =  bool.args ? ifop.ifBlock : ifop.elseBlock;
-    return executeBlock(block!, moduleTypes);
+    return executeBlock(block!, moduleTypes, stack);
+}
+export function executeBlock(block:BlockOp, moduleTypes:WasmFuncType[], stack: Op[]){
+    let label:Label;
+    if(isValType(block.bt)){ // no params if single valtype
+        
+        label = new Label(1, block.expr, block.bt as valType);
+    }else if(block.bt == 0x40){ // empty type
+        
+        label = new Label(0, block.expr, undefined);
+    }else{ // will have multiple returns and/or at least one param
+        let paramValues:Op[] = [];
+        // @TODO instruction index
+        const paramArity = moduleTypes[block.bt].parameters.length;
+        if(paramArity == 1){
+            paramValues.push(stack.pop()!);
+        }else if(paramArity > 1){
+            for (let i = 0; i < paramArity; i++) {
+                paramValues.push(stack.pop()!);
+            }
+        }
+        label = new Label(moduleTypes[block.bt].returns.length, block.expr, moduleTypes[block.bt], 0, false, paramValues);
+    }
+    return label;
+}
+
+export function br(stack:Op[], labelidx:number){
+    if(labelCount(stack) < labelidx+1) throw new Error ("Not enough labels in the stack.");
+    const res = lookForLabel(stack, labelidx)!;
+    const resVals = [];
+    // debugger;
+    // node --inspect-brk ./node_modules/jest/bin/jest.js -t "RunTest" --runInBand
+    if(res.isblock) {
+        for(let i = 0; i < res.arity; i++){
+            const val = stack.pop();
+            // @TODO: implement type check for constants, references, and null
+            resVals.push(val!);
+        }
+    }else{
+        if(res.type instanceof WasmFuncType && res.type.parameters.length>0) {
+            for(let i = 0; i<res.type.parameters.length; i++){
+                const val = stack.pop();
+                // @TODO: implement type check for constants, references, and null
+                resVals.push(val!);
+            }
+        }
+    }
+    while(stack[stack.length-1] != res) {
+        stack.pop();
+    }
+    if(res.isblock){
+        stack.pop();
+        resVals.forEach(val => {
+            stack.push(val);
+        });
+    }else{
+        res.instrIndex = -1; // immediatly gets incremented when it goes back to the label exec
+        // ^ This will become 0 ^
+        resVals.forEach(val => {
+            stack.push(val);
+        });
+    }
+}
+
+export function br_if(bool: Op, stack: Op[], labelidx:number){
+    if(bool.args ? true : false) br(stack, labelidx);
 }
 
 // getters and setters

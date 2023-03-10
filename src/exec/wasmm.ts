@@ -1,17 +1,19 @@
-import fs from 'fs';
+import fs, { copyFileSync } from 'fs';
 import { Immer } from 'immer';
 import  * as types from "./types";
 import  * as parserTypes from "../types";
 import { ExportSection, parseModule }from "../parser";
 import { assert } from 'console';
-import { Op, IfElseOp } from '../helperParser';
+import { Op, IfElseOp, BlockOp } from '../helperParser';
 import { Opcode } from "../opcodes"
 import * as execute from "./operations"
 import { type } from 'os';
+import { exec } from 'child_process';
 export type WasmType = "i32" | "i64" | "f32" | "f64" | "funcref" | "externref" | "vectype";
 
 export class Label extends Op{
-    constructor(public arity:number, public instr: Op[], public instrIndex: number = 0){
+    constructor(public arity:number, public instr: Op[], public type:WasmFuncType | parserTypes.valType | undefined, 
+        public instrIndex: number = 0, public isblock:Boolean = false, public parameters:Op[] = []){
         super(Opcode.Label, []);
     }
 }
@@ -97,17 +99,63 @@ export function isFuncAddr(func: unknown): func is types.FuncAddr {
     return (func as types.FuncAddr).val !== undefined;
 }
 
-
 //look from the top of the stack til you find a frame
 export function lookForFrame(stack:Op[]){
     let frame: Frame;
     for (let i = stack.length; i >= 0; i--) {
         if(stack[i] instanceof Frame) {
             frame = stack[i] as Frame;
+            return frame;
         }
     }
-    if(frame! == undefined) throw new Error("No frame on stack found")
-    return frame;
+    if(frame! == undefined) throw new Error("No frame on stack found");
+}
+export function lookForLabel(stack:Op[], labelidx:number = 0){
+    // looks for the n label from the top of the stack, where n is the labelidx
+    let label: Label;
+    let labelPointer = 0;
+    for (let i = stack.length-1; i >= 0; i--) {
+        if(stack[i] instanceof Label) {
+            if(labelPointer == labelidx){
+                label = stack[i] as Label;
+                return label;
+            }
+            labelPointer++;
+        }
+    }
+}
+export function labelCount(stack:Op[]){
+    let counter = 0;
+    for (let i = stack.length-1; i >= 0; i--) {
+        if(stack[i] instanceof Label) {
+            counter++;
+        }
+    }
+    return counter;
+}
+
+export function doublePopConst(stack:Op[]){
+    const res = [];
+    let savedLabel:Label | undefined = undefined;
+    if(stack[stack.length-1] instanceof Label){
+        savedLabel = stack.pop() as Label;
+    }
+    for (let i = stack.length-1; i >= 0; i--) {
+            res.push(stack.pop());
+        
+        if(res.length == 2){
+            if(savedLabel != undefined) stack.push(savedLabel);
+            return res as [Op, Op];
+        } 
+    }
+}
+
+export function constParamsOperationValues(stack:Op[], currLabel:Label): [Op, Op]{
+    if(currLabel.parameters.length > 0){
+        return [currLabel.parameters.pop()!, currLabel.parameters.pop()!];
+    } else{
+        return doublePopConst(stack)!;
+    }
 }
 
 export class WebAssemblyMtsStore implements types.Store {
@@ -116,21 +164,19 @@ export class WebAssemblyMtsStore implements types.Store {
         public globals: types.GlobalInst[]=[], public exports: types.ExportInst[]=[]) {
         this.stack = [];
     }
-    executeOp(op: Op | IfElseOp):void | Op[] {
+    executeOp(op: Op | IfElseOp, currLabel:Label):void | Op[] {
         const len = this.stack.length;
         switch(op.id){
             case Opcode.Return:{
                 //Find the current Frame
-                let frame: Frame;
-                for (let i = this.stack.length; i >= 0; i--) {
-                    if(this.stack[i] instanceof Frame) {
-                        frame = this.stack[i] as Frame;
-                    }
-                }
+                const frame = lookForFrame(this.stack);
                 if(frame! == undefined) throw new Error("No frame on stack found");
                 //get the number of return values
-                let returns = frame.module.types[frame.currentFunc].returns;
-                let returnArity = returns.length;
+                let funcTypeAddr = frame.module.funcs[frame.currentFunc];
+                const returns = frame.module.types[funcTypeAddr.val].returns.length;
+                let returnArity = returns;
+  
+                // console.log("returns",returns);
                 let results: Op[] = [];
                 //turn this into a check for type of the return values from returns (check from top of the stack until Frame)
                 if (this.stack.length < returnArity) throw new Error("Missing return values");
@@ -150,22 +196,37 @@ export class WebAssemblyMtsStore implements types.Store {
             }
             // control instructions
             case Opcode.If:{ // else is handled inside
-                
                 const frame = lookForFrame(this.stack);
-                const moduleTypes = frame.module.types;
+                const moduleTypes = frame!.module.types;
                 // passing the boolean (constant numtype), the ifop (containing the block), the store and the module types reference
-                const blockRes = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes);
-                if(blockRes instanceof Op){
-                    // console.log("single",blockRes)
-                    this.stack.push(blockRes);
-                }else{
-                    // console.log("multi", blockRes)
-                 this.stack.push(...blockRes);
-                }
+                const labelRes = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes, this.stack);
+                this.stack.push(labelRes);
+                break;
+            }
+            case Opcode.Block:{
+                // a br will branch at the end of it
+                const frame = lookForFrame(this.stack);
+                const moduleTypes = frame!.module.types;
+                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack);
+                labelRes.isblock = true;
+                this.stack.push(labelRes);
                 break;
             }
             case Opcode.Loop:{
-                // @todo
+                debugger;
+                // a br will branch at the start of it
+                const frame = lookForFrame(this.stack);
+                const moduleTypes = frame!.module.types;
+                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack);
+                this.stack.push(labelRes);
+                break;
+            }
+            case Opcode.Br:{
+                execute.br(this.stack, op.args as number);
+                break;
+            }
+            case Opcode.BrIf:{
+                execute.br_if(this.stack.pop()!, this.stack, op.args as number);
                 break;
             }
             case Opcode.End:{
@@ -181,85 +242,102 @@ export class WebAssemblyMtsStore implements types.Store {
             }
             // math
             case Opcode.i32add:{
-                if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i32add(this.stack.pop()!, this.stack.pop()!))
+                // console.log("params are: ",currLabel.parameters);
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
+                // console.log("obtained values are",x, y);
+                this.stack.push(execute.i32add(x, y))
                 break;
             }
             case Opcode.i32sub:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i32sub(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.i32sub(x, y))
                 break;
             }
             case Opcode.i32mul:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i32mul(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.i32mul(x, y))
                 break;
             }
             case Opcode.i32divU:
             case Opcode.i32divS:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i32div(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.i32div(x, y))
                 break;
             }
             case Opcode.i64add:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i64add(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.i64add(x, y))
                 break;
             }
             case Opcode.i64sub:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i64sub(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.i64sub(x, y))
                 break;
             }
             case Opcode.i64mul:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i64mul(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.i64mul(x, y))
                 break;
             }
             case Opcode.i64divU:
             case Opcode.i64divS:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.i64div(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.i64div(x, y))
                 break;
             }
             case Opcode.f32add:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f32add(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f32add(x, y))
                 break;
             }
             case Opcode.f32sub:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f32sub(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f32sub(x, y))
                 break;
             }
             case Opcode.f32mul:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f32mul(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f32mul(x, y))
                 break;
             }
             case Opcode.f32div:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f32div(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f32div(x, y))
                 break;
             }
             case Opcode.f64add:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f64add(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f64add(x, y))
                 break;
             }
             case Opcode.f64sub:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f64sub(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f64sub(x, y))
                 break;
             }
             case Opcode.f64mul:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f64mul(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f64mul(x, y))
                 break;
             }
             case Opcode.f64div:{
+                let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 if(this.stack.length<2) throw new Error(`Expecting 2 arguments, got ${this.stack.length}`);
-                this.stack.push(execute.f64div(this.stack.pop()!, this.stack.pop()!))
+                this.stack.push(execute.f64div(x, y))
                 break;
             }
 
@@ -275,159 +353,192 @@ export class WebAssemblyMtsStore implements types.Store {
             }
             //EQ
             case Opcode.I32Eq:{
-                this.stack.push(execute.i32eq(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32eq(x, y))
                 break;
             }
             case Opcode.I64Eq:{
-                this.stack.push(execute.i64eq(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64eq(x, y))
                 break;
             }
             case Opcode.F32Eq:{
-                this.stack.push(execute.f32eq(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f32eq(x, y))
                 break;
             }
             case Opcode.F64Eq:{
-                this.stack.push(execute.f64eq(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f64eq(x, y))
                 break;
             }
             //NE
             case Opcode.I32Ne:{
-                this.stack.push(execute.i32ne(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32ne(x, y))
                 break;
             }
             case Opcode.I64Ne:{
-                this.stack.push(execute.i64ne(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64ne(x, y))
                 break;
             }
             case Opcode.F32Ne:{
-                this.stack.push(execute.f32ne(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f32ne(x, y))
                 break;
             }
             case Opcode.F64Ne:{
-                this.stack.push(execute.f64ne(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f64ne(x, y))
                 break;
             }
             //LT
             case Opcode.I32LtS:{
-                this.stack.push(execute.i32lts(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32lts(x, y))
                 break;
             }
             case Opcode.I32LtU:{
-                this.stack.push(execute.i32ltu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32ltu(x, y))
                 break;
             }
             case Opcode.I64LtS:{
-                this.stack.push(execute.i64lts(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64lts(x, y))
                 break;
             }
             case Opcode.I64LtU:{
-                this.stack.push(execute.i64ltu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64ltu(x, y))
                 break;
             }
             case Opcode.F32Lt:{
-                this.stack.push(execute.f32lt(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f32lt(x, y))
                 break;
             }
             case Opcode.F64Lt:{
-                this.stack.push(execute.f64lt(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f64lt(x, y))
                 break;
             }
             //GT
             case Opcode.I32GtS:{
-                this.stack.push(execute.i32gts(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32gts(x, y))
                 break;
             }
             case Opcode.I32GtU:{
-                this.stack.push(execute.i32gtu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32gtu(x, y))
                 break;
             }
             case Opcode.I64GtS:{
-                this.stack.push(execute.i64gts(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64gts(x, y))
                 break;
             }
             case Opcode.I64GtU:{
-                this.stack.push(execute.i64gtu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64gtu(x, y))
                 break;
             }
             case Opcode.F32Gt:{
-                this.stack.push(execute.f32gt(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f32gt(x, y))
                 break;
             }
             case Opcode.F64Gt:{
-                this.stack.push(execute.f64gt(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f64gt(x, y))
                 break;
             }
             //LE
             case Opcode.I32LeS:{
-                this.stack.push(execute.i32les(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32les(x, y))
                 break;
             }
             case Opcode.I32LeU:{
-                this.stack.push(execute.i32leu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32leu(x, y))
                 break;
             }
             case Opcode.I64LeS:{
-                this.stack.push(execute.i64les(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64les(x, y))
                 break;
             }
             case Opcode.I64LeU:{
-                this.stack.push(execute.i64leu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64leu(x, y))
                 break;
             }
             case Opcode.F32Le:{
-                this.stack.push(execute.f32le(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f32le(x, y))
                 break;
             }
             case Opcode.F64Le:{
-                this.stack.push(execute.f64le(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f64le(x, y))
                 break;
             }
             //GE
             case Opcode.I32GeS:{
-                this.stack.push(execute.i32ges(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32ges(x, y))
                 break;
             }
             case Opcode.I32GeU:{
-                this.stack.push(execute.i32geu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i32geu(x, y))
                 break;
             }
             case Opcode.I64GeS:{
-                this.stack.push(execute.i64ges(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64ges(x, y))
                 break;
             }
             case Opcode.I64GeU:{
-                this.stack.push(execute.i64geu(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.i64geu(x, y))
                 break;
             }
             case Opcode.F32Ge:{
-                this.stack.push(execute.f32ge(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f32ge(x, y))
                 break;
             }
             case Opcode.F64Ge:{
-                this.stack.push(execute.f64ge(this.stack.pop()!, this.stack.pop()!))
+                let [x, y] = constParamsOperationValues(this.stack, currLabel);
+                this.stack.push(execute.f64ge(x, y))
                 break;
             }
             //getters and setters
             // local get/set
             case Opcode.SetLocal:{
                 const frame = lookForFrame(this.stack);
-
-                const localToSet:parserTypes.localsVal = frame.locals[op.args as number];
+                const localToSet:parserTypes.localsVal = frame!.locals[op.args as number];
                 execute.setLocal(localToSet, this.stack.pop()!);
+                break;
             }
             case Opcode.GetLocal:{
                 const frame = lookForFrame(this.stack);
-
-                const localToGet:parserTypes.localsVal = frame.locals[op.args as number];
+                const localToGet:parserTypes.localsVal = frame!.locals[op.args as number];
                 this.stack.push(execute.getLocal(localToGet));
+                break;
             }
             case Opcode.TeeLocal:{ // like set but keeping the const
                 const frame = lookForFrame(this.stack);
 
-                const localToSet:parserTypes.localsVal = frame.locals[op.args as number];
+                const localToSet:parserTypes.localsVal = frame!.locals[op.args as number];
                 const valToKeep = this.stack.pop();
                 this.stack.push(valToKeep!);
                 execute.setLocal(localToSet, valToKeep!);
+                break;
             }
 
             // global get/set
@@ -483,19 +594,19 @@ export class WebAssemblyMts {
         }
         // FuncInst
         const funcTypeSignatures = functionSignatures?.content;
+        
         for (let i = 0; i < funcTypeSignatures.length; i++) {
             let func:types.FuncInst= {
                 type: mtsModule.types[funcTypeSignatures[i]],
                 module: mtsModule,
                 code: functionCodes?.content[i].content
             }
-            let length = WebAssemblyMts.store.funcs.push(func)
+            WebAssemblyMts.store.funcs.push(func)
             //every instance reference addrs is with respect to the store indices
             mtsModule.funcs.push(
-                {kind: "funcaddr", val: length-1}
+                {kind: "funcaddr", val: funcTypeSignatures[i]}
             )
         }
-            
         // TableInst
         
         //tables seems to be arrays of function references/functions
@@ -550,15 +661,20 @@ export class WebAssemblyMts {
 
         for(let index in exportSection?.content) {
             // parsing the address type (exportdesc[0] is the desctype)
+            
             let value:types.ExternVal;
             const exportdesc = exportSection?.content[index].exportdesc;
-            switch(exportdesc[0]){
-                case 0: value = {kind:"funcaddr", val: exportdesc[1]}; break;
-                case 1: value = {kind:"tableaddr", val: exportdesc[1]}; break;
-                case 2: value = {kind:"memaddr", val: exportdesc[1]}; break;
-                case 3: value = {kind:"globaladdr", val: exportdesc[1]}; break;
+            const exportedType = exportdesc[0];
+            const exportedAddress = exportdesc[1];
+            switch(exportedType){
+                 case 0: value = {kind:"funcaddr", val: exportedAddress}; break;
+                //NEED TO CHANGE OTHER CASES with mtsModule.table/mem/global ...
+                // case 1: value = {kind:"tableaddr", val: exportedAddress}; break;
+                // case 2: value = {kind:"memaddr", val: exportedAddress}; break;
+                // case 3: value = {kind:"globaladdr", val: exportedAddress}; break;
                 default: throw new Error(`Invalid export description type`);
             }
+            // const type = WebAssemblyMts.store.funcs[address.val].type;
             let exports:types.ExportInst= {
                 valName: exportSection?.content[index].name[1],
                 value
@@ -618,51 +734,80 @@ export class WebAssemblyMts {
         throw new Error("Bad input data");
     }
 
-    static run(funcorlabel:types.ExportInst, ...args: unknown[]):any;
-    static run(funcorlabel:types.FuncAddr, ...args: unknown[]):any;
+    static run(func:types.ExportInst, ...args: unknown[]):any;
+    static run(func:types.FuncAddr, ...args: unknown[]):any;
 
-    static run(funcorlabel:unknown, ...args: unknown[]){
+    static run(func:unknown, ...args: unknown[]){
         let funcInstance:types.FuncInst;
         let funcAddress: number;
         let label:Label, frame:Frame;
-        if(isExportInst(funcorlabel)){
-            funcAddress = funcorlabel.value.val;
+        if(isExportInst(func)){
+            funcAddress = func.value.val;
             funcInstance = this.store.funcs[funcAddress];
-        }else if(isFuncAddr(funcorlabel)){
-            funcAddress = funcorlabel.val;
+        }else if(isFuncAddr(func)){
+            funcAddress = func.val;
             funcInstance = this.store.funcs[funcAddress];
         // }else if(isLabel(func)){
         }else{
             throw new Error("Bad function reference.")
         }
         // label (arity and code)
-        label = new Label(funcInstance!.type.parameters.length, funcInstance!.code.body);
+        label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
         // activation frame (locals and module)
         const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
         const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
         const allLocals:parserTypes.localsVal[] = params.concat(locals);
         frame = new Frame(allLocals, funcInstance!.module, funcAddress!);
         this.store.stack.push(frame);
-        execute.processParams(label.arity, funcInstance!.type.parameters, args, frame.locals);
+        const parametersArity = funcInstance!.type.parameters.length;
         const returnsArity = funcInstance!.type.returns.length;
+        execute.processParams(parametersArity, funcInstance!.type.parameters, args, frame.locals);
         return this.executeInstructions(label, returnsArity);
     }
 
     static executeInstructions(label:Label, returnsArity:number):Op | Op[]{
         this.store.stack.push(label);
+        // OLD CODE
         //with function calls I'll call the run method passing n args (popping values from the stack)
-        label.instr.forEach(op => {
-            // take n parameters (arity) from the call
-            this.store.executeOp(op)
-            label.instrIndex++;
-            // console.log("stackstatus ",this.store.stack);
-        });
-        // console.log("stack",this.store.stack);
+        // label.instr.forEach(op => {
+        //     // take n parameters (arity) from the call
+        //     this.store.executeOp(op)
+        //     label.instrIndex++;
+        //     // console.log("stackstatus ",this.store.stack);
+        // });
+        try {
+        while(lookForLabel(this.store.stack) != undefined) {
+            const currLabel = lookForLabel(this.store.stack)!;
+            // console.log("stack after label",this.store.stack);
+
+            if(currLabel.instrIndex < currLabel.instr.length){
+                // console.log("instrindex",currLabel.instrIndex);
+                // console.log("Instruction:",currLabel.instr[currLabel.instrIndex].kind)
+                this.store.executeOp(currLabel.instr[currLabel.instrIndex], currLabel);
+                currLabel.instrIndex++;
+            }else{
+                const labelRes: Op[] = [];
+                for (let i = 0; i < currLabel.arity; i++) {
+                    labelRes.push(this.store.stack.pop()!);
+                }
+                // console.log("popped",labelRes)
+                // console.log("current last element",this.store.stack[this.store.stack.length-1]);
+                if(this.store.stack[this.store.stack.length-1] != currLabel) throw new Error("No label on top of the stack.");
+                this.store.stack.pop();
+                labelRes.forEach(val => {
+                    this.store.stack.push(val);
+                });
+            }
+        }
+        } catch(err) {
+            console.log("UNEXPECTED ERROR. Stack:",this.store.stack);
+            throw err;
+        }
         if(this.store.stack.length < returnsArity) throw new Error("Not enough return elements in the stack");
         if(returnsArity > 1){
-            const res = [];
-            for (let i = 0; i < returnsArity; i++) {
-                res.push(this.store.stack.pop()!);
+            const res = new Array(returnsArity);
+            for (let i = returnsArity-1; i >=0 ; i--) {
+                res[i] = this.store.stack.pop();
             }
             // console.log("multires", res);
             return res;
