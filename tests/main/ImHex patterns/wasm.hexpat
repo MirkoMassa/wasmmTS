@@ -27,6 +27,7 @@ enum ValueType : u8 {
 	externref = 0x6F,
 	
 };
+
 struct SizedString<T> {
 	T size;
 	char value[size];
@@ -109,6 +110,7 @@ enum Opcode : u8 {
 	Block = 0x02,
 	Loop = 0x03,
 	If = 0x04,
+	Else = 0x05,
 	End = 0x0B,
 	Br = 0x0C,
 	BrIf = 0x0D,
@@ -323,7 +325,7 @@ enum FCOpcode : u8 {
     dataDrop = 9,
     memoryCopy = 0xA,
     memoryFill = 0xB,
-    tableInit = 0xC,
+    tableInit = 0xC, //two idxs
     elemDrop = 0xD,
     tableCopy = 0xE, //two idxes
     tableGrow = 0xF,
@@ -332,7 +334,7 @@ enum FCOpcode : u8 {
 };
 
 enum FDOpcode : u8 {
- i8x16swizzle = 14,
+    i8x16swizzle = 14,
     i8x16splat = 15,
     i16x8splat = 16,
     i32x4splat = 17,
@@ -556,13 +558,96 @@ union BlockType {
     type::LEB128 index;
 };
 
+struct MemArg {
+    type::LEB128 offset;
+    type::LEB128 align;
+};
+
 struct Op {
     Opcode op;
     if(op == Opcode::Block || op ==  Opcode::Loop || op == Opcode::If) {
        BlockType bt;
     }
+    if(op == Opcode::Br || op == Opcode::BrIf) {
+        type::LEB128 labelidx;
+    }
+    if(op == Opcode::Call || op == Opcode::CallIndirect || op == Opcode::RefFunc) {
+        type::LEB128 funcidx;
+    }
+
+    if(op == Opcode::CallIndirect) {
+        type::LEB128 tableidx;
+        type::LEB128 funcidx;
+    }
+
+    if(op == Opcode::I32Const || op == Opcode::I64Const) {
+        type::LEB128 val;
+    }
+    if(op == Opcode::F32Const) {
+        float val;
+    }
+
+    if(op == Opcode::F64Const) {
+        double val;
+    }
+
+    if(op == Opcode::LocalGet || 
+    op == Opcode::LocalSet || 
+    op == Opcode::LocalTee ||
+    op == Opcode::GlobalGet ||
+    op == Opcode::GlobalSet ||
+    op == Opcode::TableGet ||
+    op == Opcode::TableSet) {
+        type::LEB128 arg;
+    }
+
+    if(op == Opcode::I32Load ||
+    op == Opcode::I64Load ||
+	op == Opcode::F32Load ||
+	op == Opcode::F64Load ||
+	op == Opcode::I32Load8S ||
+	op == Opcode::I32Load8U ||
+	op == Opcode::I32Load16S ||
+	op == Opcode::I32Load16U ||
+	op == Opcode::I64Load8S ||
+	op == Opcode::I64Load8U ||
+	op == Opcode::I64Load16S ||
+	op == Opcode::I64Load16U ||
+	op == Opcode::I64Load32S ||
+	op == Opcode::I64Load32U ||
+	op == Opcode::I32Store ||
+	op == Opcode::I64Store ||
+	op == Opcode::F32Store ||
+	op == Opcode::F64Store ||
+	op == Opcode::I32Store8 ||
+	op == Opcode::I32Store16 ||
+	op == Opcode::I64Store8 ||
+	op == Opcode::I64Store16 ||
+	op == Opcode::I64Store32) {
+        MemArg memarg [[inline]];
+    }
+
     if (op == Opcode::prefixedFC) {
         FCOpcode fcop;
+        if(fcop == FCOpcode::memoryInit ||
+        fcop == FCOpcode::dataDrop ||
+        fcop == FCOpcode::memoryCopy ||
+        fcop == FCOpcode::memoryFill ||
+        fcop == FCOpcode::tableInit ||
+        fcop == FCOpcode::elemDrop ||
+        fcop == FCOpcode::tableCopy ||
+        fcop == FCOpcode::tableGrow ||
+        fcop == FCOpcode::tableSize ||
+        fcop == FCOpcode::tableFill
+        ) {
+            type::LEB128 idx;
+        }
+        if(
+        fcop == FCOpcode:: tableInit ||
+        fcop == FCOpcode:: tableCopy
+        ) {
+            type::LEB128 idy;
+        }
     }
     if (op == Opcode::prefixedFD) {
         FDOpcode fdop;
@@ -676,6 +761,7 @@ struct WASM {
 };
 
 WASM wasm @ 0x00;
+
 
 
 
