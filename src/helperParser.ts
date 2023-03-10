@@ -6,6 +6,7 @@ import * as op from "./opcodes"
 import {parseBlock, parseMemArg, parseNumber, parseFC, parseFD, parseBlockType, parseIfBlock} from "./instructionsParser"
 import { logAsHex } from "./utils";
 import * as assert from "assert";
+import { Block } from "typescript";
 
 export function parseidx(bytes: Uint8Array, index: number): [number, number] { //thats literally a parse int
     const [id, width] = lebToInt(bytes.slice(index, index+4));
@@ -127,6 +128,12 @@ export class BlockOp extends Op {
         this.id = op.Opcode.Block;
     }
 }
+export class LoopOp extends Op {
+    constructor(public bt: types.blockType, public expr: Op[], public indexNum = 0) {
+        super(op.Opcode.Loop, [], indexNum)
+        this.id = op.Opcode.Loop;
+    }
+}
 export class ElseOp extends Op {
     constructor(public bt: types.blockType, public expr: Op[], public indexNum = 0) {
         super(op.Opcode.Else, [], indexNum)
@@ -151,9 +158,10 @@ export function parseInstruction(bytes: Uint8Array, index: number, parentBlockTy
         return [new Op(op.Opcode.Else,[],index), index+1];
     }
     else if(bytes[index] == op.Opcode.Block || bytes[index] == op.Opcode.Loop){
+        const opId = bytes[index];
         let blockType:types.blockType;
         [blockType, index] = parseBlockType(bytes, index+1);
-        return parseBlock(bytes, index, blockType);
+        return parseBlock(bytes, index, blockType, opId);
     }
     
     // single idx (ref.func, variable instructions, table get and set)

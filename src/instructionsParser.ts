@@ -4,7 +4,7 @@ import  * as types from "./types";
 import * as helperParser from "./helperParser";
 import {prefixedOp} from "./helperParser";
 import { enumRange, logAsHex } from "./utils";
-import {Op, ElseOp, BlockOp, IfElseOp} from "./helperParser";
+import {Op, ElseOp, BlockOp, LoopOp, IfElseOp} from "./helperParser";
 import * as op from "./opcodes"
 
 export function parseBlockType(bytes: Uint8Array, index: number):[types.blockType, number] {
@@ -24,10 +24,14 @@ export function parseBlockType(bytes: Uint8Array, index: number):[types.blockTyp
     }
     return [bt, index];
 }
-export function parseBlock(bytes: Uint8Array, index: number, bt:types.blockType):[BlockOp, number] {
+export function parseBlock(bytes: Uint8Array, index: number, bt:types.blockType, opId: op.Opcode):[BlockOp, number] {
     let expr:Op[];
     [expr, index] = helperParser.parseBlockExpr(bytes, index, bt);
-    return [new BlockOp(bt, expr, index), index];
+    if(opId == op.Opcode.Block){
+        return [new BlockOp(bt, expr, index), index];
+    }else{
+        return [new LoopOp(bt, expr, index), index];
+    }
 }
 
 export function parseIfBlock(bytes: Uint8Array, index: number, bt:types.blockType):[IfElseOp, number] {
