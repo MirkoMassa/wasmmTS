@@ -1,6 +1,7 @@
 import { valType, namesVector, limits, tableType, globalType, refType, funcType, funcComponent } from "../types"
 import { Op } from "../helperParser"
 import {WasmFuncType, WasmType} from "./wasmm"
+import { Opcode } from "../opcodes"
 export enum ValTypeEnum {
      i32 = 0x7F,
      i64 = 0x7E,
@@ -10,6 +11,14 @@ export enum ValTypeEnum {
      externref = 0x6f,
      vectype = 0x7B
 }
+export const rawConstBits = {
+    [Opcode.I32Const] : 32,
+    [Opcode.I64Const] : 64,
+    [Opcode.F32Const] : 32,
+    [Opcode.F64Const] : 64
+}
+export type WasmConsts = Opcode.I32Const | Opcode.I64Const | Opcode.F32Const | Opcode.F64Const;
+
 // Instances
 export type FuncInst = {
     type: WasmFuncType,
@@ -22,7 +31,7 @@ export type TableInst = {
 }
 export type MemInst = {
     type: limits,
-    data: number[]
+    data: Uint8Array
 }
 export type GlobalInst = {
     mut: "const" | "mut"
@@ -93,7 +102,7 @@ export type WebAssemblyMtsModule = {
 //     value: ExternVal
 // }
 export type WebAssemblyMtsInstance = {
-    exports: {[key: string]:Function},
+    exports: {[key: string]: any},
     object: object | undefined
 }
 export type Store = {
