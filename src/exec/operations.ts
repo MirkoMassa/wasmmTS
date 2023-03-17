@@ -1,10 +1,11 @@
 import { assert } from 'console';
 import { Op, IfElseOp, BlockOp } from '../helperParser';
 import {Opcode} from "../opcodes"
-import { valType, localsVal } from '../types';
-import { FuncRef } from './types';
-import { ValTypeEnum } from './types'
-import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, WebAssemblyMts, labelCount, lookForLabel } from './wasmm';
+import { valType, localsVal, memarg } from '../types';
+import { FuncRef, MemInst } from './types';
+import { ValTypeEnum , rawConstBits, WasmConsts } from './types'
+import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, 
+    Frame, WebAssemblyMts, labelCount, lookForLabel, memCheck } from './wasmm';
 // utils
 export function checkDualArityFn(x:Op, y:Op, opcode:Opcode) {
     if(x.id != opcode || y.id != opcode) 
@@ -50,6 +51,8 @@ function isValType(type: unknown): boolean{
 
 export function processParams(arity:number, types: WasmType[], args: unknown[], locals:localsVal[]){
     if(arity<args.length) throw new Error (`Unexpected number of parameters. Got ${args.length}, expected ${arity}.`);
+    
+    
     for (let i = 0; i < args.length; i++) {
         let currentArg = args[i];
         if(typeof args[i] == "number") {
@@ -70,7 +73,12 @@ export function processParams(arity:number, types: WasmType[], args: unknown[], 
         }else if(isFuncRef(currentArg)) {
             if(types[i] != "funcref" && typeof types[i] !== "function") throw new Error();
             // idk @todo
+
+        }else if(args[i] instanceof Op) {
+            // for instruction 'call'
+            locals[i].value = (args[i] as Op).args as valType;
         }
+
     }
 }
 
@@ -438,4 +446,50 @@ export function setLocal(local:localsVal, val:Op) {
 }
 export function getLocal(local:localsVal):Op {
     return new Op(convertValTypeToOpCode(local.type), local.value);
+}
+
+// t.loadN_sx memarg & t.load memarg
+export function load(stack: Op[], type:Opcode, memInst:MemInst, memArgs:memarg, N: 8 | 16 | 32 | 64){
+    const location = stack.pop()!;
+    checkTypeOpcode(location!, Opcode.I32Const);
+    const resOffsetAddress = (location.args as number) + memArgs.offset;
+    if(resOffsetAddress + N/8 > memInst.data.length){
+        throw new Error("Exeeded memData length.");
+    }
+    let result:number | bigint;
+    if(N == 64){
+        result = 0n;
+        for (let i = 0; i < N/8; i++) {
+            result = result | (BigInt(memInst.data[i + resOffsetAddress]) << 8n*BigInt(i));
+        }
+    }else{
+        result = 0;
+        for (let i = 0; i < N/8; i++) {
+            result = result | (memInst.data[i + resOffsetAddress] << 8*i);
+        }
+    }
+    stack.push(new Op(type, result));
+} 
+
+export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:memarg, hasN:boolean, N: 8 | 16 | 32 | 64){
+    const value = stack.pop();
+    checkTypeOpcode(value!, type);
+    let rawValue = value?.args as number | bigint;
+    const location = stack.pop()!;
+    checkTypeOpcode(location!, Opcode.I32Const);
+    const resOffsetAddress = (location.args as number) + memArgs.offset;
+    if(resOffsetAddress + N/8 > memInst.data.length){
+        throw new Error("Exeeded memData length.");
+    }
+    if(hasN && typeof rawValue == "bigint"){
+        // bigint
+        rawValue = rawValue % 2n**BigInt(N)
+    }else if(hasN && typeof rawValue == "number") {
+        rawValue = rawValue % 2**N;
+    }
+    // for bitWidth/8 {data[i+offset] = ????}
+    for (let i = 0; i < N/8; i++) {
+        memInst.data[i + resOffsetAddress] = 0xff & (rawValue as number >> 8*i);
+    }
+    console.log("pushed bytes, ",memInst.data.slice(resOffsetAddress, resOffsetAddress+N/8));
 }
