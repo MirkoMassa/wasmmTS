@@ -6,9 +6,8 @@ import { ExportSection, parseModule }from "../parser";
 import { assert } from 'console';
 import { Op, IfElseOp, BlockOp } from '../helperParser';
 import { Opcode } from "../opcodes"
+import { checkTypeOpcode } from './operations';
 import * as execute from "./operations"
-import { type } from 'os';
-import { exec } from 'child_process';
 export type WasmType = "i32" | "i64" | "f32" | "f64" | "funcref" | "externref" | "vectype";
 
 export class Label extends Op{
@@ -88,85 +87,50 @@ export class WasmFuncType {
 //     }
 // }
 
-export function isWebAssemblyModule(data: unknown): data is types.WebAssemblyMtsModule {
-    //runtime test of the data: if it is true assert something about the type of data to typescript
-    return (data as types.WebAssemblyMtsModule).types !== undefined;
-}
-export function isExportInst(func: unknown): func is types.ExportInst {
-    return (func as types.ExportInst).valName !== undefined;
-}
-export function isFuncAddr(func: unknown): func is types.FuncAddr {
-    return (func as types.FuncAddr).val !== undefined;
-}
-
-//look from the top of the stack til you find a frame
-export function lookForFrame(stack:Op[]){
-    let frame: Frame;
-    for (let i = stack.length; i >= 0; i--) {
-        if(stack[i] instanceof Frame) {
-            frame = stack[i] as Frame;
-            return frame;
-        }
-    }
-    if(frame! == undefined) throw new Error("No frame on stack found");
-}
-export function lookForLabel(stack:Op[], labelidx:number = 0){
-    // looks for the n label from the top of the stack, where n is the labelidx
-    let label: Label;
-    let labelPointer = 0;
-    for (let i = stack.length-1; i >= 0; i--) {
-        if(stack[i] instanceof Label) {
-            if(labelPointer == labelidx){
-                label = stack[i] as Label;
-                return label;
-            }
-            labelPointer++;
-        }
-    }
-}
-export function labelCount(stack:Op[]){
-    let counter = 0;
-    for (let i = stack.length-1; i >= 0; i--) {
-        if(stack[i] instanceof Label) {
-            counter++;
-        }
-    }
-    return counter;
-}
-
-export function doublePopConst(stack:Op[]){
-    const res = [];
-    let savedLabel:Label | undefined = undefined;
-    if(stack[stack.length-1] instanceof Label){
-        savedLabel = stack.pop() as Label;
-    }
-    for (let i = stack.length-1; i >= 0; i--) {
-            res.push(stack.pop());
-        
-        if(res.length == 2){
-            if(savedLabel != undefined) stack.push(savedLabel);
-            return res as [Op, Op];
-        } 
-    }
-}
-
-export function constParamsOperationValues(stack:Op[], currLabel:Label): [Op, Op]{
-    if(currLabel.parameters.length > 0){
-        return [currLabel.parameters.pop()!, currLabel.parameters.pop()!];
-    } else{
-        return doublePopConst(stack)!;
-    }
-}
-
 export class WebAssemblyMtsStore implements types.Store {
     public stack: Op[];
     constructor(public funcs: types.FuncInst[]=[], public tables: types.TableInst[]=[], public mems: types.MemInst[]=[], 
         public globals: types.GlobalInst[]=[], public exports: types.ExportInst[]=[]) {
         this.stack = [];
     }
+    takeMem(): types.MemInst{
+        const frame = lookForFrame(this.stack);
+        memCheck(frame!);
+        const addr = frame!.module.mems[0].val;
+        return this.mems[addr];
+    }
+
     executeOp(op: Op | IfElseOp, currLabel:Label):void | Op[] {
         const len = this.stack.length;
         switch(op.id){
+            case Opcode.Call:{
+                const frame = lookForFrame(this.stack);
+                if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
+
+                let funcInstance:types.FuncInst;
+                let funcAddress: number;
+                let label:Label, newFrame:Frame;
+                funcAddress = op.args as number;
+                funcInstance = this.funcs[funcAddress];
+
+                label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
+
+                const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
+                const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
+                const allLocals:parserTypes.localsVal[] = params.concat(locals);
+                newFrame = new Frame(allLocals, funcInstance!.module, funcAddress!);
+                const parametersArity = funcInstance!.type.parameters.length;
+
+                const args:Op[] = new Array(parametersArity);
+                for (let i = 0; i < parametersArity; i++) {
+                    args[i] = this.stack.pop()!;
+                }
+                execute.processParams(parametersArity, funcInstance!.type.parameters, args, frame.locals);
+                
+                this.stack.push(frame);
+                this.stack.push(label);
+                break;
+            }
             case Opcode.Return:{
                 //Find the current Frame
                 const frame = lookForFrame(this.stack);
@@ -540,6 +504,76 @@ export class WebAssemblyMtsStore implements types.Store {
                 execute.setLocal(localToSet, valToKeep!);
                 break;
             }
+            // memory instructions
+            // load
+            case Opcode.I32Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, 32);
+                break;
+            }
+            case Opcode.I64Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, 64);
+                break;
+            }
+            case Opcode.F32Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.F32Const, memInst, op.args as parserTypes.memarg, 32);
+                break;
+            }
+            case Opcode.F64Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.F64Const, memInst, op.args as parserTypes.memarg, 64);
+                break;
+            }
+
+            // store
+            case Opcode.I32Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, false, 32);
+                break;
+            }
+            case Opcode.I32Store8:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, true, 8);
+                break;
+            }
+            case Opcode.I32Store16:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, true, 16);
+                break;
+            }
+            case Opcode.I64Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 64);
+                break;
+            }
+            case Opcode.I64Store8:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 8);
+                break;
+            }
+            case Opcode.I64Store16:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 16);
+                break;
+            }
+            case Opcode.I64Store32:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 32);
+                break;
+            }
+            case Opcode.F32Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.F32Const, memInst, op.args as parserTypes.memarg, false, 32);
+                break;
+            }
+            case Opcode.F64Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.F64Const, memInst, op.args as parserTypes.memarg, false, 64);
+                break;
+            }
+
 
             // global get/set
             // case Opcode.SetGlobal:{
@@ -588,7 +622,6 @@ export class WebAssemblyMts {
         let dataSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAData)
         let exportSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAExport)
 
-
         for(let type of typesSection!.content) {
             mtsModule.types.push(new WasmFuncType(type));
         }
@@ -626,7 +659,11 @@ export class WebAssemblyMts {
         for(let index in memorySection?.content) {
             
             const vecLength = 65536 * memorySection?.content[index].min;
-            const data = new Array(vecLength);
+            // > 127 into a cell of an Int8arry then it will be read back as a negative number
+            // javascript numbers are 64 floating points numbers
+            // negative floating point numbers will all the left most bits to 1. 
+            // 1110 + 1 = 0000
+            const data = new Uint8Array(vecLength);
             let mem:types.MemInst= {
                 type: memorySection?.content[index],
                 data
@@ -661,16 +698,15 @@ export class WebAssemblyMts {
 
         for(let index in exportSection?.content) {
             // parsing the address type (exportdesc[0] is the desctype)
-            
             let value:types.ExternVal;
             const exportdesc = exportSection?.content[index].exportdesc;
             const exportedType = exportdesc[0];
             const exportedAddress = exportdesc[1];
             switch(exportedType){
-                 case 0: value = {kind:"funcaddr", val: exportedAddress}; break;
+                case 0: value = {kind:"funcaddr", val: exportedAddress}; break;
                 //NEED TO CHANGE OTHER CASES with mtsModule.table/mem/global ...
                 // case 1: value = {kind:"tableaddr", val: exportedAddress}; break;
-                // case 2: value = {kind:"memaddr", val: exportedAddress}; break;
+                case 2: value = {kind:"memaddr", val: exportedAddress}; break;
                 // case 3: value = {kind:"globaladdr", val: exportedAddress}; break;
                 default: throw new Error(`Invalid export description type`);
             }
@@ -714,6 +750,9 @@ export class WebAssemblyMts {
                         }
                         
                     }
+                }
+                else if(exp.value.kind == "memaddr"){
+                    instantiatedSource.instance.exports[exp.valName] = WebAssemblyMts.store.mems[exp.value.val].data;
                 }
             })
             return instantiatedSource;
@@ -818,5 +857,76 @@ export class WebAssemblyMts {
     }
 }
 
+// helper funcs
 
+export function isWebAssemblyModule(data: unknown): data is types.WebAssemblyMtsModule {
+    //runtime test of the data: if it is true assert something about the type of data to typescript
+    return (data as types.WebAssemblyMtsModule).types !== undefined;
+}
+export function isExportInst(func: unknown): func is types.ExportInst {
+    return (func as types.ExportInst).valName !== undefined;
+}
+export function isFuncAddr(func: unknown): func is types.FuncAddr {
+    return (func as types.FuncAddr).val !== undefined;
+}
 
+//look from the top of the stack til you find a frame
+export function lookForFrame(stack:Op[]){
+    let frame: Frame;
+    for (let i = stack.length; i >= 0; i--) {
+        if(stack[i] instanceof Frame) {
+            frame = stack[i] as Frame;
+            return frame;
+        }
+    }
+    if(frame! == undefined) throw new Error("No frame on stack found");
+}
+export function lookForLabel(stack:Op[], labelidx:number = 0){
+    // looks for the n label from the top of the stack, where n is the labelidx
+    let label: Label;
+    let labelPointer = 0;
+    for (let i = stack.length-1; i >= 0; i--) {
+        if(stack[i] instanceof Label) {
+            if(labelPointer == labelidx){
+                label = stack[i] as Label;
+                return label;
+            }
+            labelPointer++;
+        }
+    }
+}
+export function labelCount(stack:Op[]){
+    let counter = 0;
+    for (let i = stack.length-1; i >= 0; i--) {
+        if(stack[i] instanceof Label) {
+            counter++;
+        }
+    }
+    return counter;
+}
+
+export function doublePopConst(stack:Op[]){
+    const res = [];
+    let savedLabel:Label | undefined = undefined;
+    if(stack[stack.length-1] instanceof Label){
+        savedLabel = stack.pop() as Label;
+    }
+    for (let i = stack.length-1; i >= 0; i--) {
+            res.push(stack.pop());
+        
+        if(res.length == 2){
+            if(savedLabel != undefined) stack.push(savedLabel);
+            return res as [Op, Op];
+        } 
+    }
+}
+export function constParamsOperationValues(stack:Op[], currLabel:Label): [Op, Op]{
+    if(currLabel.parameters.length > 0){
+        return [currLabel.parameters.pop()!, currLabel.parameters.pop()!];
+    } else{
+        return doublePopConst(stack)!;
+    }
+}
+export function memCheck(frame:Frame){
+    if(frame.module.mems[0] == undefined) throw new Error("Undefined memory.");
+}
