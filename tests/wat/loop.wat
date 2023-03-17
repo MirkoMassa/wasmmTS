@@ -23,7 +23,7 @@
             i32.lt_s ;;[i32]
             ;; br_if is just a br with an if incorporated
             br_if $my_loop ;; ;;[]
-
+            ;; i
             local.get $j ;;[i32]
         )
         return

@@ -70,7 +70,7 @@ describe("RunTest", ()=>{
         console.log(res, oracle);
         expect(res === oracle);
     })
-    test.only("loopFuncType", async () => {
+    test("loopFuncType", async () => {
         const buffer = fs.readFileSync('./tests/wasm/loopFuncType.wasm');
         const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
@@ -83,12 +83,39 @@ describe("RunTest", ()=>{
     test("loopBlockFuncType", async () => {
         const buffer = fs.readFileSync('./tests/wasm/loopBlockFuncType.wasm');
         const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
-        // const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
-        // const res = inst.varloop(0);
-        let res = "RES";
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        const res = inst.varloop(0);
         // @ts-ignore
         const oracle = tmodule.varloop(0);
         console.log(res, oracle);
+        expect(res === oracle);
+    })
+    test("loadstore", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/loadstore.wasm');
+        const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        const res = inst.i32store(0x2739FF12);
+        // @ts-ignore
+        const oracle = tmodule.i32store(0x2739FF12);
+        console.log("myres",res, "APIres",oracle);
+        // @ts-ignore
+        console.log("memory output",inst.memory);
+        // @ts-ignore
+        console.log("memory output API",tmodule.memory.buffer);
+        expect(res === oracle);
+    })
+    test.only("arrays", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/arrays.wasm');
+        const tmodule = await WebAssembly.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}}).then(res => res.instance.exports);
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}}).then(res=> res.instance.exports);
+        const res = inst.array(10);
+        // @ts-ignore
+        const oracle = tmodule.array(10);
+        console.log("myres",res, "APIres",oracle);
+        // @ts-ignore
+        console.log("memory output",inst.memory);
+        // @ts-ignore
+        console.log("memory output API",tmodule.memory.buffer);
         expect(res === oracle);
     })
 })
@@ -144,3 +171,38 @@ describe("Store", () => {
 
 })
 
+describe("sampleFunc", () =>{
+    test("uint8storeloop", () =>{
+        function test(value: number | bigint, length: 32 | 64){
+            let store:Uint8Array;
+            if(length == 32){
+                store = new Uint8Array(4);
+            }else if(length == 64){
+                store = new Uint8Array(8);
+            }else{
+                throw new Error("invalid byte length.");
+            }
+            console.log("currentVal",value.toString(16))
+
+            for (let i = 0; i < length/8; i++) {
+                store[i] = 0xff & (value as number >> 8*i);
+            }
+
+            // log
+            let output = "";
+            store.forEach(val =>{
+                output = output.concat(val.toString(16), " ");
+            })
+            console.log("Store array", output);
+            let result = 0;
+            // see if the value is correctly stored
+            for (let i = 0; i < length/8; i++) {
+                result = result | (store[i] << 8*i);
+            }
+            console.log("original value", result);
+        }
+        test(63, 32);
+        test(624, 32);
+        test(21640, 32);
+    })
+})
