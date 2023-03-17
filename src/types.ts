@@ -110,7 +110,10 @@ export const valTypeSet = new Set([0x7F, 0x7E, 0x7D, 0x7C, 0x7B, 0x70, 0x6f]); /
 export type descTypes = number | tableType | limits | globalType;
 export type elemmode = 0x00 | 0x01 | 0x02 // passive | active | declarative
 export type blockType = 0x40 | valType | number;
-export type memarg = [number, number]; //align, offset
+export type memarg = {
+    align:number, 
+    offset:number
+};
 export type tableType = {
     et: refType, //element reference type
     lim: limits

@@ -61,7 +61,7 @@ export function parseMemArg(bytes: Uint8Array, index: number):[types.memarg, num
     [offset, width] = lebToInt(bytes.slice(index, index+4));
     index += width;
     // console.log("align offset and index",align, offset, index);
-    return [[align, offset], index];
+    return [{align, offset}, index];
 }
 export function parseFC(bytes: Uint8Array, index: number):[prefixedOp, number] {
     const [prefix, width] = lebToInt(bytes.slice(index, index+4));
