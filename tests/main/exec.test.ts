@@ -104,7 +104,7 @@ describe("RunTest", ()=>{
         console.log("memory output API",tmodule.memory.buffer);
         expect(res === oracle);
     })
-    test.only("arrays", async () => {
+    test("arrays", async () => {
         const buffer = fs.readFileSync('./tests/wasm/arrays.wasm');
         const tmodule = await WebAssembly.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}}).then(res => res.instance.exports);
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}}).then(res=> res.instance.exports);
@@ -118,8 +118,57 @@ describe("RunTest", ()=>{
         console.log("memory output API",tmodule.memory.buffer);
         expect(res === oracle);
     })
+    test("callTest", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/call.wasm');
+        const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        const res = inst.main(4);
+        // @ts-ignore
+        const oracle = tmodule.main(4);
+        console.log("myres",res, "APIres",oracle);
+        expect(res === oracle);
+    })
+    test("fibonacci", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/fib.wasm');
+        const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        for(let i=0; i < 6; i ++) {
+            const res = inst.fib(i);
+            // @ts-ignore
+            const oracle = tmodule.fib(i);
+            console.log("myres",res, "APIres",oracle);
+            console.log("fib of",i, "APIres",oracle);
+            expect(res === oracle);
+        }
+    })
 })
 
+describe("ImmutableStateTest", ()=>{
+    test("loopTT", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/loop.wasm');
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance);
+        debugger;
+        const res = inst.exportsTT.varloop(4);
+        console.log(res.stores.states.length);
+        console.log(res.val);
+        expect(res.val.args == 6);
+    })
+    test.only("arraysTT", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/arrays.wasm');
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}}).then(res=> res.instance);
+        const tmodule = await WebAssembly.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}}).then(res => res.instance);
+        //@ts-ignore
+        const oracle = tmodule.exports.createArrTest(3, 7, 3, 5);
+        //@ts-ignore
+        // console.log(tmodule.exports.memory.buffer);
+        // console.log("api res",oracle)
+        // debugger;
+        // creating an array of length 5
+        const res = inst.exportsTT.createArrTest(3, 7, 3, 5);
+        console.log(res.stores.states.length);
+        console.log("myres",res.val);
+    })
+})
 
 describe("ops", ()=>{
     test("executeop", ()=>{

@@ -12,6 +12,7 @@
     (export "length" (func $len))
     (export "range" (func $range))
     (export "reduce" (func $reduce))
+    (export "createArrTest" (func $createArrTest))
     
     ;; Arrays and some array recursion exercices
     (memory (export "memory") 1) ;; allocating 64KB
@@ -23,6 +24,7 @@
     ;; defining types
     (type $i32_=>_i32 (func (param i32) (result i32))) ;; gets an i32, returns an i32
     (type $i32_i32_=> (func (param i32 i32))) ;; gets two i32
+    (type $ctType (func (param i32 i32 i32 i32) (result i32))) ;; gets an i32, returns an i32
 
     ;; allocate the memory and offset of the array
     (func $arr (type $i32_=>_i32) (param $length i32) (result i32)
@@ -32,7 +34,6 @@
         i32.const 0
         i32.load
         local.set $offset
-
         ;; getting the $offset (first element in memory) and the $length of the array, then
         ;; it stores the value of $length in the memory location pointed by $offset. 
         
@@ -106,7 +107,7 @@
     ;; create array main function
     ;; [1,2,3,4,\0] C arrays
     ;; length,[1,2,3,4] my arr here
-    (func $createArrTest (param $v1 i32) (param $v2 i32) (param $v3 i32) (param $v4 i32) (result i32)
+    (func $createArrTest (type $ctType) (param $v1 i32) (param $v2 i32) (param $v3 i32) (param $v4 i32) (result i32)
         (local $arr1 i32) ;; new array
         ;; setting the initial offset
         i32.const 0
@@ -252,7 +253,8 @@
         return
     )
     ;; [1,2,3.4].reduce((accum,curelem) => a+curelem, 10)
-    (func $reduce (param $arr i32) (param $init i32) (result i32) (local $accum i32) (local $i i32) (local $length i32)
+    (func $reduce (param $arr i32) (param $init i32) (result i32) 
+        (local $accum i32) (local $i i32) (local $length i32)
         local.get $arr
         call $len
         local.set $length
