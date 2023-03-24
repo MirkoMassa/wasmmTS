@@ -2,6 +2,7 @@
 import  * as types from "./types";
 import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt"
 import {decodeSignedLeb128 as slebToInt} from "./leb128ToInt"
+import { immerable } from "immer";
 import * as op from "./opcodes"
 import {parseBlock, parseMemArg, parseNumber, parseFC, parseFD, parseBlockType, parseIfBlock} from "./instructionsParser"
 import { logAsHex } from "./utils";
@@ -66,12 +67,14 @@ export function parseValType(bytes: Uint8Array, index: number):[types.valType, n
 }
 
 export class Op {
+    [immerable] = true;
     kind: string;
     constructor(public id: op.Opcode, public args: number[] | number | Op[] | types.block | types.memarg | bigint | [types.memarg, number] | types.refType, public indexNum = 0) {
         this.kind = op.Opcode[id];
     }
 }
 export class prefixedOp {
+    [immerable] = true;
     constructor(public id: op.Opcode, public kind: string, public args: number[] | number | types.memarg | bigint | [types.memarg, number] | [], public indexNum = 0) {}
 }
 
