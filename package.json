@@ -8,7 +8,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "testDebug": "node --inspect-brk ./node_modules/jest/bin/jest.js -t \"RunTest\" --runInBand"
+    "testDebug": "node --inspect-brk ./node_modules/jest/bin/jest.js -t \"RunTest\" --runInBand --verbose=true",
+    "testDebugTT": "node --inspect-brk ./node_modules/jest/bin/jest.js -t \"ImmutableStateTest\" --runInBand --verbose=true"
   },
   "keywords": [],
   "author": "",
