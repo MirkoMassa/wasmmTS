@@ -1,6 +1,6 @@
 import { valType, namesVector, limits, tableType, globalType, refType, funcType, funcComponent } from "../types"
 import { Op } from "../helperParser"
-import {WasmFuncType, WasmType} from "./wasmm"
+import {WasmFuncType, WasmType, WebAssemblyMtsStore} from "./wasmm"
 import { Opcode } from "../opcodes"
 export enum ValTypeEnum {
      i32 = 0x7F,
@@ -103,6 +103,7 @@ export type WebAssemblyMtsModule = {
 // }
 export type WebAssemblyMtsInstance = {
     exports: {[key: string]: any},
+    exportsTT: {[key: string]: any},
     object: object | undefined
 }
 export type Store = {
@@ -118,3 +119,9 @@ export type WebAssemblyMtsInstantiatedSource = {
 }
 
 export type FuncRef = {value: number, type:0x70};
+
+export type storeProducePatches = {
+    states: WebAssemblyMtsStore[],
+    patches: any[],
+    previousPatches: any[]
+}

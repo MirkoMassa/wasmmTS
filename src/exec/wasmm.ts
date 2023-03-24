@@ -1,5 +1,7 @@
-import fs, { copyFileSync } from 'fs';
-import { Immer } from 'immer';
+import { Immer, produce, produceWithPatches, immerable } from 'immer';
+import { current } from 'immer';
+import {enablePatches} from "immer"
+enablePatches();
 import  * as types from "./types";
 import  * as parserTypes from "../types";
 import { ExportSection, parseModule }from "../parser";
@@ -11,18 +13,21 @@ import * as execute from "./operations"
 export type WasmType = "i32" | "i64" | "f32" | "f64" | "funcref" | "externref" | "vectype";
 
 export class Label extends Op{
+    [immerable] = true;
     constructor(public arity:number, public instr: Op[], public type:WasmFuncType | parserTypes.valType | undefined, 
         public instrIndex: number = 0, public isblock:Boolean = false, public parameters:Op[] = []){
         super(Opcode.Label, []);
     }
 }
 export class Frame extends Op{
+    [immerable] = true;
     constructor(public locals:parserTypes.localsVal[], public module:types.WebAssemblyMtsModule, public currentFunc: number){
         super(Opcode.Frame, []);
     }
 }
 
 export class WasmFuncType {
+    [immerable] = true;
     parameters: WasmType[];
     returns: WasmType[];
     constructor(rawType: parserTypes.funcType) {
@@ -88,6 +93,7 @@ export class WasmFuncType {
 // }
 
 export class WebAssemblyMtsStore implements types.Store {
+    [immerable] = true;
     public stack: Op[];
     constructor(public funcs: types.FuncInst[]=[], public tables: types.TableInst[]=[], public mems: types.MemInst[]=[], 
         public globals: types.GlobalInst[]=[], public exports: types.ExportInst[]=[]) {
@@ -106,15 +112,13 @@ export class WebAssemblyMtsStore implements types.Store {
             case Opcode.Call:{
                 const frame = lookForFrame(this.stack);
                 if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
-
+                debugger;
                 let funcInstance:types.FuncInst;
                 let funcAddress: number;
                 let label:Label, newFrame:Frame;
                 funcAddress = op.args as number;
-                funcInstance = this.funcs[funcAddress];
-
+                funcInstance = this.funcs[funcAddress-1];
                 label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
-
                 const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
                 const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
                 const allLocals:parserTypes.localsVal[] = params.concat(locals);
@@ -125,9 +129,9 @@ export class WebAssemblyMtsStore implements types.Store {
                 for (let i = 0; i < parametersArity; i++) {
                     args[i] = this.stack.pop()!;
                 }
-                execute.processParams(parametersArity, funcInstance!.type.parameters, args, frame.locals);
+                execute.processParams(parametersArity, funcInstance!.type.parameters, args, newFrame.locals);
                 
-                this.stack.push(frame);
+                this.stack.push(newFrame);
                 this.stack.push(label);
                 break;
             }
@@ -154,8 +158,11 @@ export class WebAssemblyMtsStore implements types.Store {
                 } while(!(this.stack[this.stack.length-1] instanceof Frame) || this.stack.length == 0)
                 assert(this.stack[this.stack.length-1] instanceof Frame, "No frame found") 
                 //pop the frame
+                debugger;
                 this.stack.pop();
                 this.stack.push(...results);
+                // console.log("stack after pop", current(this.stack));
+                // console.log("stack after return", JSON.stringify(current(this.stack), null, 2))
                 break;
             }
             // control instructions
@@ -177,7 +184,7 @@ export class WebAssemblyMtsStore implements types.Store {
                 break;
             }
             case Opcode.Loop:{
-                debugger;
+                // debugger;
                 // a br will branch at the start of it
                 const frame = lookForFrame(this.stack);
                 const moduleTypes = frame!.module.types;
@@ -207,6 +214,7 @@ export class WebAssemblyMtsStore implements types.Store {
             // math
             case Opcode.i32add:{
                 // console.log("params are: ",currLabel.parameters);
+                debugger;
                 let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 // console.log("obtained values are",x, y);
                 this.stack.push(execute.i32add(x, y))
@@ -595,7 +603,7 @@ export class WebAssemblyMtsStore implements types.Store {
 
 export class WebAssemblyMts {
     static store: WebAssemblyMtsStore;
-    
+    [immerable] = true;
     static async compile(bytes:Uint8Array): Promise<types.WebAssemblyMtsModule> {
         //call parser on the bytes
         let [moduleTree, length] = parseModule(bytes);
@@ -627,7 +635,7 @@ export class WebAssemblyMts {
         }
         // FuncInst
         const funcTypeSignatures = functionSignatures?.content;
-        
+        // console.log("signatures",funcTypeSignatures)
         for (let i = 0; i < funcTypeSignatures.length; i++) {
             let func:types.FuncInst= {
                 type: mtsModule.types[funcTypeSignatures[i]],
@@ -694,8 +702,8 @@ export class WebAssemblyMts {
         //         data: // vector of ref
         //     }
         // }
-        // ExportInst
 
+        // ExportInst
         for(let index in exportSection?.content) {
             // parsing the address type (exportdesc[0] is the desctype)
             let value:types.ExternVal;
@@ -710,11 +718,11 @@ export class WebAssemblyMts {
                 // case 3: value = {kind:"globaladdr", val: exportedAddress}; break;
                 default: throw new Error(`Invalid export description type`);
             }
-            // const type = WebAssemblyMts.store.funcs[address.val].type;
             let exports:types.ExportInst= {
                 valName: exportSection?.content[index].name[1],
                 value
             }
+            // console.log("exp",exports)
             WebAssemblyMts.store.exports.push(exports)
             mtsModule.exports.push(exports)
         }
@@ -731,13 +739,15 @@ export class WebAssemblyMts {
         //import object is how many page of memory there are
         if(moduleOrBytes instanceof Uint8Array) {
             const wmodule = await this.compile(moduleOrBytes);
-            const instance:types.WebAssemblyMtsInstance = {exports: {}, object: undefined};
+            const instance:types.WebAssemblyMtsInstance = {exports: {}, exportsTT: {}, object: undefined};
             const instantiatedSource: types.WebAssemblyMtsInstantiatedSource = {module: wmodule, instance};
             
             wmodule.exports.forEach(exp => {
                 if(exp.value.kind == "funcaddr"){
                     instantiatedSource.instance.exports[exp.valName] = (...args: any[]) => {
                         const funcRes:Op | Op[] = WebAssemblyMts.run(exp, ...args);
+
+                        // \/ this is to return directly vals, not Op consts \/
                         if(funcRes instanceof Op){
                             return funcRes.args;
                         }else{
@@ -750,6 +760,11 @@ export class WebAssemblyMts {
                         }
                         
                     }
+                    // time travel
+                    instantiatedSource.instance.exportsTT[exp.valName] = (...args: any[]) => {
+                        const funcRes:{val: Op | Op[], stores: types.storeProducePatches} = WebAssemblyMts.runTT(exp, ...args);
+                        return funcRes;
+                    }
                 }
                 else if(exp.value.kind == "memaddr"){
                     instantiatedSource.instance.exports[exp.valName] = WebAssemblyMts.store.mems[exp.value.val].data;
@@ -758,16 +773,27 @@ export class WebAssemblyMts {
             return instantiatedSource;
 
         }else if(isWebAssemblyModule(moduleOrBytes)) {
-            // need to implement importobject    
+            // need to implement importobject  
             const instantiatedSource: types.WebAssemblyMtsInstantiatedSource =
-            {module: moduleOrBytes, instance:{exports: {}, object: undefined}};
+            {module: moduleOrBytes, instance:{exports: {}, exportsTT: {}, object: undefined}};
             moduleOrBytes.exports.forEach(exp => {
                 if(exp.value.kind == "funcaddr"){
                     instantiatedSource.instance.exports[exp.valName] = (...args: any) => {
                         return WebAssemblyMts.run(exp, ...args);
                     }
+                    // time travel
+                    instantiatedSource.instance.exportsTT[exp.valName] = (...args: any) => {
+                        return WebAssemblyMts.runTT(exp, ...args);
+                    }
                 }
             })
+            // moduleOrBytes.exports.forEach(exp =>{
+            //     if(exp.value.kind == "funcaddr"){
+            //         instantiatedSource.instance.exportsTT[exp.valName] = (...args: any) => {
+            //             return WebAssemblyMts.runTT(exp, ...args);
+            //         }
+            //     }
+            // })
             return instantiatedSource;
         }
         throw new Error("Bad input data");
@@ -782,10 +808,10 @@ export class WebAssemblyMts {
         let label:Label, frame:Frame;
         if(isExportInst(func)){
             funcAddress = func.value.val;
-            funcInstance = this.store.funcs[funcAddress];
+            funcInstance = this.store.funcs[funcAddress-1];
         }else if(isFuncAddr(func)){
             funcAddress = func.val;
-            funcInstance = this.store.funcs[funcAddress];
+            funcInstance = this.store.funcs[funcAddress-1];
         // }else if(isLabel(func)){
         }else{
             throw new Error("Bad function reference.")
@@ -855,10 +881,112 @@ export class WebAssemblyMts {
             return this.store.stack.pop()!;
         }
     }
+
+    static runTT(func:types.ExportInst, ...args: unknown[]):any;
+    static runTT(func:types.FuncAddr, ...args: unknown[]):any;
+
+    static runTT(func:unknown, ...args: unknown[]){
+        let funcInstance:types.FuncInst;
+        let funcAddress: number;
+        let label:Label, frame:Frame;
+        if(isExportInst(func)){
+            funcAddress = func.value.val;
+            funcInstance = this.store.funcs[funcAddress-1];
+        }else if(isFuncAddr(func)){
+            funcAddress = func.val;
+            funcInstance = this.store.funcs[funcAddress-1];
+        // }else if(isLabel(func)){
+        }else{
+            throw new Error("Bad function reference.")
+        }
+        // creating states array of store, pushing the base store and an empty patch
+        const stores:types.storeProducePatches = {
+            states: [],
+            patches: [],
+            previousPatches: []
+        };
+        const parametersArity = funcInstance!.type.parameters.length;
+        const returnsArity = funcInstance!.type.returns.length;
+        const produced = produceWithPatches(this.store, (state)=>{
+            label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
+            // activation frame (locals and module)
+            const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
+            const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
+            const allLocals:parserTypes.localsVal[] = params.concat(locals);
+            frame = new Frame(allLocals, funcInstance!.module, funcAddress!);
+            state.stack.push(frame);
+            state.stack.push(label);
+            // debugger;
+            execute.processParams(parametersArity, funcInstance!.type.parameters, args, frame.locals);
+            return state;
+        })
+        stores.states.push(produced[0]);
+        stores.patches.push(produced[1]);
+        stores.previousPatches.push(produced[2]);
+        // console.log("stores",JSON.stringify(stores.patches, null, 2));
+        // label (arity and code)
+        return this.executeInstructionsTT(returnsArity, stores);
+    }
+
+    static executeInstructionsTT(returnsArity:number, stores:types.storeProducePatches): { stores: types.storeProducePatches, val: Op | Op[]} {
+        let currStore = stores.states[stores.states.length-1];
+        // console.log("store:",currStore)
+        try {
+            
+        while(lookForLabel(currStore.stack) != undefined) {
+            // debugger;
+            // console.log("stack after label",this.store.stack);
+            const produced = produceWithPatches(currStore, (state)=>{
+                const currLabel = lookForLabel(state.stack)!;
+                if(currLabel.instrIndex < currLabel.instr.length){
+                    // console.log("instrindex",currLabel.instrIndex);
+                    // console.log("Instruction:",currLabel.instr[currLabel.instrIndex].kind)
+                    // console.log("curr op",currLabel.instr[currLabel.instrIndex].kind, "len",state.stack.length)
+                    state.executeOp(currLabel.instr[currLabel.instrIndex], currLabel);
+                    currLabel.instrIndex++;
+                }else{
+                    const labelRes: Op[] = [];
+                    for (let i = 0; i < currLabel.arity; i++) {
+                        labelRes.push(state.stack.pop()!);
+                    }
+                    // console.log("popped",labelRes)
+                    // console.log("current last element",state.stack[state.stack.length-1]);
+                    if(state.stack[state.stack.length-1] != currLabel) throw new Error("No label on top of the stack.");
+                    state.stack.pop();
+                    labelRes.forEach(val => {
+                        state.stack.push(val);
+                    });
+                }
+                return state;
+            })
+            stores.states.push(produced[0]);
+            stores.patches.push(produced[1]);
+            stores.previousPatches.push(produced[2]);
+            currStore = stores.states[stores.states.length-1];
+        }
+        } catch(err) {
+            console.log("UNEXPECTED ERROR. Stack:", currStore.stack);
+            throw err;
+        }
+        if(currStore.stack.length < returnsArity) throw new Error("Not enough return elements in the stack");
+        if(returnsArity > 1){
+            const res = new Array(returnsArity);
+            for (let i = returnsArity-1; i >=0 ; i--) {
+                // res[i] = currStore.stack.pop();
+                res[i] = currStore.stack[i];
+            }
+            // console.log("multires", res);
+            return {stores, val: res}
+        }else{
+            // console.log("store",currStore)
+            const res: Op = currStore.stack[currStore.stack.length-1];
+            // console.log("singleres", res);
+            return {stores, val: res}
+        }
+    }
 }
 
 // helper funcs
-
 export function isWebAssemblyModule(data: unknown): data is types.WebAssemblyMtsModule {
     //runtime test of the data: if it is true assert something about the type of data to typescript
     return (data as types.WebAssemblyMtsModule).types !== undefined;
@@ -869,7 +997,6 @@ export function isExportInst(func: unknown): func is types.ExportInst {
 export function isFuncAddr(func: unknown): func is types.FuncAddr {
     return (func as types.FuncAddr).val !== undefined;
 }
-
 //look from the top of the stack til you find a frame
 export function lookForFrame(stack:Op[]){
     let frame: Frame;
@@ -904,7 +1031,6 @@ export function labelCount(stack:Op[]){
     }
     return counter;
 }
-
 export function doublePopConst(stack:Op[]){
     const res = [];
     let savedLabel:Label | undefined = undefined;

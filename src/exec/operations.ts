@@ -1,4 +1,5 @@
 import { assert } from 'console';
+import { current } from 'immer';
 import { Op, IfElseOp, BlockOp } from '../helperParser';
 import {Opcode} from "../opcodes"
 import { valType, localsVal, memarg } from '../types';
@@ -51,7 +52,6 @@ function isValType(type: unknown): boolean{
 
 export function processParams(arity:number, types: WasmType[], args: unknown[], locals:localsVal[]){
     if(arity<args.length) throw new Error (`Unexpected number of parameters. Got ${args.length}, expected ${arity}.`);
-    
     
     for (let i = 0; i < args.length; i++) {
         let currentArg = args[i];
@@ -472,10 +472,12 @@ export function load(stack: Op[], type:Opcode, memInst:MemInst, memArgs:memarg, 
 } 
 
 export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:memarg, hasN:boolean, N: 8 | 16 | 32 | 64){
+    // debugger;
     const value = stack.pop();
     checkTypeOpcode(value!, type);
     let rawValue = value?.args as number | bigint;
     const location = stack.pop()!;
+    // console.log("val and loc",value, location);
     checkTypeOpcode(location!, Opcode.I32Const);
     const resOffsetAddress = (location.args as number) + memArgs.offset;
     if(resOffsetAddress + N/8 > memInst.data.length){
@@ -491,5 +493,5 @@ export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:me
     for (let i = 0; i < N/8; i++) {
         memInst.data[i + resOffsetAddress] = 0xff & (rawValue as number >> 8*i);
     }
-    console.log("pushed bytes, ",memInst.data.slice(resOffsetAddress, resOffsetAddress+N/8));
+    // console.log("pushed bytes, ",memInst.data.slice(resOffsetAddress, resOffsetAddress+N/8));
 }
