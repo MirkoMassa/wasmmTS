@@ -9,13 +9,16 @@
     (import "imports" "reduce_func" (func $imports/reduce_func (param i32 i32) (result i32)))
     (export "array" (func $createArr))
     (export "get" (func $get))
+    (export "arr" (func $arr))
     (export "length" (func $len))
     (export "range" (func $range))
     (export "reduce" (func $reduce))
     (export "createArrTest" (func $createArrTest))
-    
+    (export "tab" (table $tb))
+
+    (memory (export "memory") 1)
     ;; Arrays and some array recursion exercices
-    (memory (export "memory") 1) ;; allocating 64KB
+     ;; allocating 64KB
 
     ;; the first cell in memory will be an i32 with the beginning offset of available space.
     ;; the following cell will be an i32 recording the length of the array, and the remaining
@@ -41,7 +44,6 @@
         local.get $length
         i32.store
         ;; offset of available space
-        
         ;; calculating real length in bits (each i32 is 4 bytes long)
         local.get $length
         i32.const 4
@@ -61,7 +63,7 @@
         local.get $offset
         return
     )
-
+    
     ;; return the array length
     (func $len (param $arr i32) (result i32)
         local.get $arr
@@ -84,7 +86,6 @@
     )
     ;; parameters: array, index to set, value to set in the index
     (func $set (param $arr i32) (param $index i32) (param $value i32)
-
         ;; getting the selected index address converted in bits ($offset func)
         local.get $arr
         local.get $index
@@ -158,6 +159,8 @@
     ;; )
     ;; **exports**
     
+
+
     (func $createArr (param $len i32) (result i32) (local $i i32)
     
         (local $arr i32)
