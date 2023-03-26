@@ -160,12 +160,13 @@ describe("ImmutableStateTest", ()=>{
         //@ts-ignore
         const oracle = tmodule.exports.createArrTest(3, 7, 3, 5);
         //@ts-ignore
-        // console.log(tmodule.exports.memory.buffer);
+        console.log(tmodule.exports.memory.buffer);
         // console.log("api res",oracle)
         // debugger;
         // creating an array of length 5
         const res = inst.exportsTT.createArrTest(3, 7, 3, 5);
-        console.log(res.stores.states.length);
+        console.log(res.stores.states[res.stores.states.length-1].mems[0].data);
+        console.log(res.stores.states[res.stores.states.length-1]);
         console.log("myres",res.val);
     })
 })
