@@ -36,9 +36,8 @@ export type WASMSection<A> = {
 //***to be defined***
 // CUSTOM SECTION [ID 00]
 export type custom = {
-    name: namesVector,
-    bytes: number[]
-
+    subsecId:number,
+    names: allNames[] | namesVector
 }
 // TYPE SECTION [ID 01]
 //payload of function signatures
@@ -93,6 +92,11 @@ export type data = {
 
 export type bytesVector = [count:number, bytes:Uint8Array];
 export type namesVector = [count:number, bytes:string];
+export type nameAssoc = [idx:number, name:namesVector]; // custom funcs
+export type indirectNameAssoc = [primaryidx:number, namemap:nameAssoc[]]; // custom locals
+
+export type allNames = nameAssoc | indirectNameAssoc;
+
 export type limits = { // also encoding for memory types
     flag: flag,
     min: number,

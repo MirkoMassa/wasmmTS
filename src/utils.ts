@@ -6,7 +6,6 @@ export function enumRange(e1:number, e2:number, object:Object):number[]{
     }
     // res.push(e2);
     return res;
-
 }
 
 // test

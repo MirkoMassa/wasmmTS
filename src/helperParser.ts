@@ -288,3 +288,77 @@ export function parsePrefix(bytes: Uint8Array, index: number):[string, number]{
     const opName = op.FCPrefixes[prefix];
     return [opName, index];
 }
+
+export function parseCustomNameSection(bytes:Uint8Array, index:number):[types.custom, number]{
+    let subsecId, size, width;
+    [subsecId, width] = lebToInt(bytes.slice(index, index+4));
+    index += width;
+
+    // size of the subsection (in bytes)
+    [size, width] = lebToInt(bytes.slice(index, index+4));
+    index += width;
+    let names:types.allNames[] | types.namesVector;
+    switch(subsecId){
+        case 0: {
+            [names, index] = parseName(bytes, index); break;
+        }
+        case 1: {
+            [names, index] = parseFunctionNames(bytes, index); break;
+        }
+        case 2: {
+            [names, index] = parseLocalNames(bytes, index); 
+            // return [null, index+=size];// temp
+            break;
+        }
+        default:{
+            throw new Error(`Unrecognized custom subSection ID (got ${subsecId})`);
+        }
+    }
+    return [{subsecId, names}, index];
+}
+
+export function parseFunctionNames(bytes:Uint8Array, index:number):[types.nameAssoc[], number]{
+    // number of name elements
+    const [count, width] = lebToInt(bytes.slice(index, index+4));
+    const names:types.nameAssoc[] = new Array(count);
+    index += width;
+
+    // name maps
+    for (let i = 0; i < count; i++) {
+        const [idx, width] = lebToInt(bytes.slice(index, index+4));
+        index += width;
+        let name:types.namesVector;
+        [name, index] = parseName(bytes, index);
+        names[i] = [idx, name];
+    }
+
+    return [names, index];
+}
+
+export function parseLocalNames(bytes:Uint8Array, index:number):[types.indirectNameAssoc[], number]{
+    let functionCount, localCount, width;
+
+    [functionCount, width] = lebToInt(bytes.slice(index, index+4));
+    index += width;
+
+    const names:types.indirectNameAssoc[] = [];
+    for (let i = 0; i < functionCount; i++) {
+        let funcidx;
+        [funcidx, width] = lebToInt(bytes.slice(index, index+4));
+        index += width;
+        [localCount, width] = lebToInt(bytes.slice(index, index+4));
+        index += width;
+
+        let localNames:types.nameAssoc[] = [];
+        for (let j = 0; j < localCount; j++) {
+            let localidx;
+            [localidx, width] = lebToInt(bytes.slice(index, index+4));
+            index += width;
+            let name;
+            [name, index] = parseName(bytes, index);
+            localNames.push([localidx, name]);
+        }
+        names.push([funcidx, localNames]);
+    }
+    return [names, index];
+}

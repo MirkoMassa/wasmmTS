@@ -2,6 +2,8 @@ import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt";
 import {decodeSignedLeb128 as slebToInt} from "./leb128ToInt"
 import  * as types from "./types";
 import * as helperParser from "./helperParser";
+import { Opcode } from "./opcodes";
+import { logAsHex } from "./utils";
 // export class ParsedBody{ //I guess I don't need that
 
 //     // count is the size of the vector, elements are the module components described here
@@ -10,15 +12,21 @@ import * as helperParser from "./helperParser";
 //     //for now elements has any type because I'm not sure how much types there will be
 //     constructor (public count:number, public elements:any = []){}
 // }
-export function parseCustomTemp(bytes: Uint8Array, index: number): boolean {
-    return true;
+export function parseCustom(bytes: Uint8Array, index: number): types.custom[] {
+    // name (for now it's the only custom section type in existence)
+    let customType;
+    [customType, index] = helperParser.parseName(bytes, index);
+    if(customType[1] != "name") throw new Error (`Unrecognized custom section type "${customType[1]}"`);
+    const customs:types.custom[] = [];
+    while(index < bytes.byteLength){
+        // console.log("before",index)
+        let subSectionRes:types.custom | null;
+        [subSectionRes, index] = helperParser.parseCustomNameSection(bytes, index);
+        customs.push(subSectionRes);
+        // console.log("after",index)
+    }
+    return customs;
 }
-
-// export function parseCustom(bytes: Uint8Array, index: number): types.custom[] {
-//     // name
-//     helperParser.parseName(bytes, index);
-    
-// }
 
 export function parseType(bytes: Uint8Array, index: number): types.funcType[] {
     //checking the number of function signatures
@@ -356,7 +364,11 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
         //expression (function body)
         let body:helperParser.Op[];
         [body, index] = helperParser.parseExpr(bytes, index, codeSize-(index-oldIndex));
-
+        if(body[body.length-2].id != Opcode.Return) {
+            body.pop();
+            body.push(new helperParser.Op(Opcode.Return, []));
+            body.push(new helperParser.Op(Opcode.End, []));
+        }
         codeVec[i] = {codeSize, content:{locals, body}};
     }
     return codeVec;
