@@ -47,12 +47,6 @@ export type DataInst = {
     data: number[]
 }
 
-// export type func = {
-//     type: number, // typeidx
-//     locals: valType[],
-//     body: number[]
-// }
-
 // Addresses
 export type Addr = valType[] | FuncAddr | TableAddr | MemAddr | GlobalAddr | ElemAddr | DataAddr | ExportInst;
 export type ExternVal = FuncAddr | TableAddr | MemAddr | GlobalAddr;
@@ -104,7 +98,8 @@ export type WebAssemblyMtsModule = {
 export type WebAssemblyMtsInstance = {
     exports: {[key: string]: any},
     exportsTT: {[key: string]: any},
-    object: object | undefined
+    object: object | undefined,
+    custom: object
 }
 export type Store = {
     funcs: FuncInst[],
