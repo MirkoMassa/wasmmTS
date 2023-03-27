@@ -143,7 +143,6 @@ export class WebAssemblyMtsStore implements types.Store {
                 //get the number of return values
                 let funcTypeAddr = frame.module.funcs[frame.currentFunc];
                 const type = frame.module.types[funcTypeAddr.val];
-                console.log("type", current(type));
                 const returnArity = type.returns.length;
   
                 // console.log("returns",returns);
@@ -606,7 +605,7 @@ export class WebAssemblyMtsStore implements types.Store {
 export class WebAssemblyMts {
     static store: WebAssemblyMtsStore;
     [immerable] = true;
-    static async compile(bytes:Uint8Array, importObject:Object | undefined): Promise<types.WebAssemblyMtsModule> {
+    static async compile(bytes:Uint8Array, importObject:Object | undefined): Promise<[types.WebAssemblyMtsModule, object]> {
         //call parser on the bytes
         let [moduleTree, length] = parseModule(bytes);
 
@@ -623,6 +622,8 @@ export class WebAssemblyMts {
             exports: []
         }
 
+        // custom section content will be returned raw from compile()
+        let customSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WACustom)?.content;
 
         let typesSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAType)
         let importSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAImport)
@@ -640,25 +641,30 @@ export class WebAssemblyMts {
             mtsModule.types.push(new WasmFuncType(type));
         }
         const funcTypeSignatures = functionSignatures?.content;
-
+        
         // FuncInst
+
         // imported ones:
-        const imports = importSection?.content;
-        // for now imports will be handled as single raw functions passed on instantiate
-        for (let i = 0; i < imports.length; i++) {
-            const currTypeSignature = funcTypeSignatures[imports[i].description];
-            //@ts-ignore
-            const currFunc = importObject.imports[imports[i].name[1]];
-            let func:types.FuncInst= {
-                type: mtsModule.types[currTypeSignature],
-                module: mtsModule,
-                code: {locals:[], body:[new Op(Opcode.End, [])]} // PLACEHOLDER
+        let imports = [];
+        if(importSection != undefined){
+            imports = importSection?.content;
+            // for now imports will be handled as single raw functions passed on instantiate
+            for (let i = 0; i < imports.length; i++) {
+                const currTypeSignature = funcTypeSignatures[imports[i].description];
+                //@ts-ignore
+                // const currFunc = importObject.imports[imports[i].name[1]];
+                let func:types.FuncInst= {
+                    type: mtsModule.types[currTypeSignature],
+                    module: mtsModule,
+                    code: {locals:[], body:[new Op(Opcode.End, [])]} // !!PLACEHOLDER!!
+                }
+                // WebAssemblyMts.store.funcs.push(func);
+                // mtsModule.funcs.push(
+                //     {kind: "funcaddr", val: funcTypeSignatures[imports[i].description]}
+                // )
             }
-            // WebAssemblyMts.store.funcs.push(func);
-            // mtsModule.funcs.push(
-            //     {kind: "funcaddr", val: funcTypeSignatures[imports[i].description]}
-            // )
         }
+
         // declared ones:
         const codes = codeSection?.content;
         // the loop will resume from the next index after the last import object
@@ -754,7 +760,7 @@ export class WebAssemblyMts {
             WebAssemblyMts.store.exports.push(exports)
             mtsModule.exports.push(exports)
         }
-        return mtsModule;
+        return [mtsModule, customSection];
         //returned module is basically the parse tree
         //compile does not run the code at all
         //will add values to the global store
@@ -766,10 +772,10 @@ export class WebAssemblyMts {
     static async instantiate(moduleOrBytes: unknown, importObject?: object): Promise<types.WebAssemblyMtsInstantiatedSource | types.WebAssemblyMtsInstance> {
         //import object is how many page of memory there are
         if(moduleOrBytes instanceof Uint8Array) {
-            const wmodule = await this.compile(moduleOrBytes, importObject);
-            const instance:types.WebAssemblyMtsInstance = {exports: {}, exportsTT: {}, object: undefined};
+            const [wmodule, custom]  = await this.compile(moduleOrBytes, importObject);
+            const instance:types.WebAssemblyMtsInstance = {exports: {}, exportsTT: {}, object: undefined, custom};
+
             const instantiatedSource: types.WebAssemblyMtsInstantiatedSource = {module: wmodule, instance};
-            
             wmodule.exports.forEach(exp => {
                 if(exp.value.kind == "funcaddr"){
                     instantiatedSource.instance.exports[exp.valName] = (...args: any[]) => {
@@ -801,9 +807,9 @@ export class WebAssemblyMts {
             return instantiatedSource;
 
         }else if(isWebAssemblyModule(moduleOrBytes)) {
-            // need to implement importobject  
+            // @TODO implement importobject  
             const instantiatedSource: types.WebAssemblyMtsInstantiatedSource =
-            {module: moduleOrBytes, instance:{exports: {}, exportsTT: {}, object: undefined}};
+            {module: moduleOrBytes, instance:{exports: {}, exportsTT: {}, object: undefined, custom: {}}};
             moduleOrBytes.exports.forEach(exp => {
                 if(exp.value.kind == "funcaddr"){
                     instantiatedSource.instance.exports[exp.valName] = (...args: any) => {
