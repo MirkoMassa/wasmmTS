@@ -293,7 +293,6 @@ export function parseCustomNameSection(bytes:Uint8Array, index:number):[types.cu
     let subsecId, size, width;
     [subsecId, width] = lebToInt(bytes.slice(index, index+4));
     index += width;
-
     // size of the subsection (in bytes)
     [size, width] = lebToInt(bytes.slice(index, index+4));
     index += width;
@@ -306,12 +305,16 @@ export function parseCustomNameSection(bytes:Uint8Array, index:number):[types.cu
             [names, index] = parseFunctionNames(bytes, index); break;
         }
         case 2: {
-            [names, index] = parseLocalNames(bytes, index); 
-            // return [null, index+=size];// temp
-            break;
+            [names, index] = parseLocalNames(bytes, index); break;      
+        }
+        case 4:{
+            [names, index] = parseTypeNames(bytes, index); break;
         }
         default:{
-            throw new Error(`Unrecognized custom subSection ID (got ${subsecId})`);
+            const bytesPosOutput = bytes.slice(index, index+4)
+            let bytesStrOutput:string = "";
+            bytesPosOutput.forEach(byte => bytesStrOutput = bytesStrOutput.concat(`${byte.toString(16)} `));
+            throw new Error(`Unrecognized custom subSection ID (got ${subsecId} at ${bytesStrOutput})`);
         }
     }
     return [{subsecId, names}, index];
@@ -361,4 +364,18 @@ export function parseLocalNames(bytes:Uint8Array, index:number):[types.indirectN
         names.push([funcidx, localNames]);
     }
     return [names, index];
+}
+
+export function parseTypeNames(bytes:Uint8Array, index:number):[types.nameAssoc[], number]{
+    const [typeCount, width] = lebToInt(bytes.slice(index, index+4));
+    index += width;
+    const typeNames:types.nameAssoc[] = [];
+    for (let i = 0; i < typeCount; i++) {
+        let name, typeidx, width;
+        [typeidx, width] = lebToInt(bytes.slice(index, index+4));
+        index += width;
+        [name, index] = parseName(bytes, index);
+        typeNames.push([typeidx, name]);
+    }
+    return [typeNames, index];
 }
