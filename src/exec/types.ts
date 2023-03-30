@@ -115,8 +115,15 @@ export type WebAssemblyMtsInstantiatedSource = {
 
 export type FuncRef = {value: number, type:0x70};
 
+
+export type ops = "replace" | "add" | "remove";
+export type patchPath = (string|number)[];
+export type patchValues = number | Op | number[];
+
+export type patch = {op:ops, path:patchPath, value:patchValues}
+
 export type storeProducePatches = {
     states: WebAssemblyMtsStore[],
-    patches: any[],
-    previousPatches: any[]
+    patches: patch[][],
+    previousPatches: any[][]
 }

@@ -1,15 +1,15 @@
-import { Immer, produce, produceWithPatches, immerable } from 'immer';
+import { Immer, produce, produceWithPatches, immerable,  } from 'immer';
 import { current } from 'immer';
 import {enablePatches} from "immer"
 enablePatches();
 import  * as types from "./types";
 import  * as parserTypes from "../types";
 import { ExportSection, parseModule }from "../parser";
-import { assert } from 'console';
 import { Op, IfElseOp, BlockOp } from '../helperParser';
 import { Opcode } from "../opcodes"
 import { checkTypeOpcode } from './operations';
 import * as execute from "./operations"
+import { WritableDraft } from 'immer/dist/types/types-external';
 export type WasmType = "i32" | "i64" | "f32" | "f64" | "funcref" | "externref" | "vectype";
 
 export class Label extends Op{
@@ -105,14 +105,12 @@ export class WebAssemblyMtsStore implements types.Store {
         const addr = frame!.module.mems[0].val;
         return this.mems[addr];
     }
-
     executeOp(op: Op | IfElseOp, currLabel:Label):void | Op[] {
         const len = this.stack.length;
         switch(op.id){
             case Opcode.Call:{
                 const frame = lookForFrame(this.stack);
                 if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
-                debugger;
                 let funcInstance:types.FuncInst;
                 let funcidx: number;
                 let label:Label, newFrame:Frame;
@@ -136,7 +134,6 @@ export class WebAssemblyMtsStore implements types.Store {
                 break;
             }
             case Opcode.Return:{
-                debugger;
                 //Find the current Frame
                 const frame = lookForFrame(this.stack);
                 if(frame! == undefined) throw new Error("No frame on stack found");
@@ -157,9 +154,8 @@ export class WebAssemblyMtsStore implements types.Store {
                 do {
                     this.stack.pop();
                 } while(!(this.stack[this.stack.length-1] instanceof Frame) || this.stack.length == 0)
-                assert(this.stack[this.stack.length-1] instanceof Frame, "No frame found")
+                // assert(this.stack[this.stack.length-1] instanceof Frame, "No frame found")
                 //pop the frame
-                debugger;
                 this.stack.pop();
                 // console.log("res", results)
                 this.stack.push(...results);
@@ -215,7 +211,6 @@ export class WebAssemblyMtsStore implements types.Store {
             // math
             case Opcode.i32add:{
                 // console.log("params are: ",currLabel.parameters);
-                debugger;
                 let [y, x] = constParamsOperationValues(this.stack, currLabel);
                 // console.log("obtained values are",x, y);
                 this.stack.push(execute.i32add(x, y))
@@ -605,11 +600,13 @@ export class WebAssemblyMtsStore implements types.Store {
 export class WebAssemblyMts {
     static store: WebAssemblyMtsStore;
     [immerable] = true;
+
     static async compile(bytes:Uint8Array, importObject:Object | undefined): Promise<[types.WebAssemblyMtsModule, object]> {
+        console.log("GOT INTO COMPILE");
         //call parser on the bytes
         let [moduleTree, length] = parseModule(bytes);
 
-        assert(length == bytes.byteLength, "Module byte length error.");
+        // assert(length == bytes.byteLength, "Module byte length error.");
         if(WebAssemblyMts.store == undefined) WebAssemblyMts.store = new WebAssemblyMtsStore();
         let mtsModule: types.WebAssemblyMtsModule = {
             types: [],
@@ -677,7 +674,6 @@ export class WebAssemblyMts {
                 module: mtsModule,
                 code: currCodeContent // locals and body
             }
-            
             WebAssemblyMts.store.funcs.push(func);
             mtsModule.funcs.push(
                 {kind: "funcaddr", val: funcTypeSignatures[i]}
@@ -760,6 +756,7 @@ export class WebAssemblyMts {
             WebAssemblyMts.store.exports.push(exports)
             mtsModule.exports.push(exports)
         }
+        console.log("exiting");
         return [mtsModule, customSection];
         //returned module is basically the parse tree
         //compile does not run the code at all
@@ -923,9 +920,8 @@ export class WebAssemblyMts {
         let funcidx: number;
         let label:Label, frame:Frame;
         if(isExportInst(func)){
-
             funcidx = func.value.val;
-            funcInstance = this.store.funcs[funcidx]; // wrong
+            funcInstance = this.store.funcs[funcidx];
         }else if(isFuncAddr(func)){
             funcidx = func.val;
             funcInstance = this.store.funcs[funcidx];
@@ -940,7 +936,15 @@ export class WebAssemblyMts {
         };
         const parametersArity = funcInstance!.type.parameters.length;
         const returnsArity = funcInstance!.type.returns.length;
-        const produced = produceWithPatches(this.store, (state)=>{
+
+        // deep copying the store
+        let setupStore = (store: WebAssemblyMtsStore) => {
+            let result = structuredClone(store);
+            Object.setPrototypeOf(result, Object.getPrototypeOf(store));
+            result[immerable] = true;
+            return result;
+        } 
+        const produced = produceWithPatches(setupStore(this.store), (state)=>{
             label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
             // activation frame (locals and module)
             const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
@@ -954,6 +958,7 @@ export class WebAssemblyMts {
             return state;
         })
         stores.states.push(produced[0]);
+        //@ts-ignore
         stores.patches.push(produced[1]);
         stores.previousPatches.push(produced[2]);
         // console.log("stores",JSON.stringify(stores.patches, null, 2));
@@ -992,6 +997,7 @@ export class WebAssemblyMts {
                 return state;
             })
             stores.states.push(produced[0]);
+            //@ts-ignore
             stores.patches.push(produced[1]);
             stores.previousPatches.push(produced[2]);
             currStore = stores.states[stores.states.length-1];
@@ -1039,6 +1045,16 @@ export function lookForFrame(stack:Op[]){
         }
     }
     if(frame! == undefined) throw new Error("No frame on stack found");
+}
+
+export function lookForFrameNoError(stack:Op[]){
+    let frame: Frame;
+    for (let i = stack.length; i >= 0; i--) {
+        if(stack[i] instanceof Frame) {
+            frame = stack[i] as Frame;
+            return frame;
+        }
+    }
 }
 export function lookForLabel(stack:Op[], labelidx:number = 0){
     // looks for the n label from the top of the stack, where n is the labelidx
@@ -1088,3 +1104,5 @@ export function constParamsOperationValues(stack:Op[], currLabel:Label): [Op, Op
 export function memCheck(frame:Frame){
     if(frame.module.mems[0] == undefined) throw new Error("Undefined memory.");
 }
+
+export default WebAssemblyMts;
