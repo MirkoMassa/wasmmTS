@@ -3,7 +3,6 @@ import  {WASMSectionID} from "./types";
 import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt"
 import * as bp from "./bodyParser";
 import * as helperParser from "./helperParser";
-
 // Generic classes
 export class WasmModule implements types.WASMModule {
     constructor(public readonly version: number, public sections: types.WASMSection<any>[]){}
