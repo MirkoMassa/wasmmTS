@@ -4,7 +4,6 @@ import  * as execTypes from "../../src/exec/types";
 import {Op} from "../../src/helperParser"
 import {Opcode} from "../../src/opcodes"
 import * as WMTS from '../../src/exec/wasmm'
-
 import fs from 'fs';
 
 describe("RunTest", ()=>{

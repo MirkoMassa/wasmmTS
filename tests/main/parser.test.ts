@@ -340,7 +340,7 @@ describe("parseCustom", ()=>{
         const res = helperParser.parseCustomNameSection(data, 0);
         console.log(JSON.stringify(res));
     })
-    test("Whole custom from loop.wasm", ()=>{ //passed
+    test.only("Whole custom from loop.wasm", ()=>{ //passed
         const data = new Uint8Array([
             0x04, 0x6E, 0x61, 0x6D, 0x65, 0x01, 0x07, 0x01, 0x00, 0x04, 0x6C, 0x6F, 0x6F, 0x70, 
             0x02, 0x09, 0x01, 0x00, 0x02, 0x00, 0x01, 0x69, 0x01, 0x01, 0x6A
