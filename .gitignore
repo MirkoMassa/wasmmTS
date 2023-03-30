@@ -2,3 +2,4 @@ node_modules
 tests/tools
 coverage
 wasmmts-A_wasm_interpreter.code-workspace
+build
