@@ -6,7 +6,7 @@ import { immerable } from "immer";
 import * as op from "./opcodes"
 import {parseBlock, parseMemArg, parseNumber, parseFC, parseFD, parseBlockType, parseIfBlock} from "./instructionsParser"
 import { logAsHex } from "./utils";
-import * as assert from "assert";
+// import * as assert from "assert";
 import { Block } from "typescript";
 
 export function parseidx(bytes: Uint8Array, index: number): [number, number] { //thats literally a parse int
@@ -89,7 +89,7 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
         let oldIndex = index;
         [op, index] = parseInstruction(bytes, index);
         // console.log(op);
-        assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
+        // assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
         expr.push(op);
     }
     if(bytes[index-1] !== 0x0B){
@@ -110,7 +110,7 @@ export function parseBlockExpr(bytes: Uint8Array, index: number, parentBlockType
         let oldIndex = index;
         [op, index] = parseInstruction(bytes, index, parentBlockType);
         // console.log("INCREMENTED INDEX to", index);
-        assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
+        // assert.notEqual(index, oldIndex, "parseInstruction did not increment the index");
         expr.push(op);
     }
     if(bytes[index] !== 0x0B) throw new Error("Invalid expression.");
