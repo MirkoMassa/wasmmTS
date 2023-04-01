@@ -1,5 +1,5 @@
 import  * as types from "./types";
-import  {WASMSectionID} from "./types";
+import {WASMSectionID} from "./types";
 import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt"
 import * as bp from "./bodyParser";
 import * as helperParser from "./helperParser";

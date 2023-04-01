@@ -354,11 +354,14 @@ export function parseCode(bytes: Uint8Array, index: number):types.code[]{
         [localCount, inWidth] = lebToInt(bytes.slice(index, index+4));
         // console.log("localcount", localCount)
         index+=inWidth; 
-        let locals:types.localsVal[] = [];
+
+        let locals:types.valType[] = [];
+
         if(localCount != 0){
-            locals = new Array(localCount);
             for (let j = 0; j < localCount; j++) {
-                [locals[j], index] = helperParser.parseLocals(bytes, index);
+                let localTuple;
+                [localTuple, index] = helperParser.parseLocals(bytes, index);
+                locals = locals.concat(localTuple);
             }
         }
         //expression (function body)

@@ -129,7 +129,7 @@ export type globalType = {
 }
 
 export type funcComponent = {
-    locals: localsVal[],
+    locals: valType[],
     body: Op[]
 }
 export type localsVal = {

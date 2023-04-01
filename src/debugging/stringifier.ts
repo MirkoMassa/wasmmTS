@@ -131,7 +131,7 @@ export function stringBuilder(elem:Op, currStore: WebAssemblyMtsStore, customSec
             }
         }
     }else{
-        throw new Error(`Invalid object "${elem}"`);
+        throw new Error(`Invalid object "${JSON.stringify(elem)}"`);
     }
     return [type, description];
 }

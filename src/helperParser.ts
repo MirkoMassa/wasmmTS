@@ -264,12 +264,20 @@ export function parseInstruction(bytes: Uint8Array, index: number, parentBlockTy
     }
 }
 
-export function parseLocals(bytes: Uint8Array, index: number):[types.localsVal, number]{
-    const [value, width] = lebToInt(bytes.slice(index, index+4));
+export function parseLocals(bytes: Uint8Array, index: number):[types.valType[], number]{
+    const [count, width] = lebToInt(bytes.slice(index, index+4));
     index+=width;
     let valtype:types.valType;
     [valtype, index] = parseValType(bytes, index);
-    return [{value, type:valtype}, index];
+
+    const locals:types.valType[] = [];
+    for (let i = 0; i < count; i++) {
+        locals[i] = valtype;
+    }
+    return [locals, index];
+
+
+
 }
 export function parseName(bytes: Uint8Array, index: number):[types.namesVector, number]{
     let [size, width] = lebToInt(bytes.slice(index, index+4));

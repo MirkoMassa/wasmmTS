@@ -44,13 +44,11 @@ export function parseIfBlock(bytes: Uint8Array, index: number, bt:types.blockTyp
     ifb = new BlockOp(bt, expr, oldIndex);
     ifb.id = op.Opcode.If;
     // checking if there is an else block, array.find returns undefined otherwise
-    var elseIndex = expr.findIndex(operation => operation.id == op.Opcode.Else);
-    if(elseIndex !== undefined) {
-
+    let elseIndex = expr.findIndex(operation => operation.id == op.Opcode.Else);
+    if(elseIndex != -1) {
         ifb.expr = expr.slice(0, elseIndex); 
         elseb = new ElseOp(bt,expr.slice(elseIndex+1), oldIndex+elseIndex);
     }
-    // console.log("filter",ifb.expr.filter(operation => operation != elseb))
     return [new IfElseOp(ifb, elseb, oldIndex), index];
 }
 
