@@ -237,8 +237,13 @@ describe("getTree", () =>{
     })
     
 
-    test.only("loop.wasm", ()=>{
+    test("loop.wasm", ()=>{
         const data = new Uint8Array(fs.readFileSync('./tests/wasm/loop.wasm'));
+        const res = parseModule(data);
+        console.log(JSON.stringify(res, null, 2));
+    })
+    test.only("fib.wasm", ()=>{
+        const data = new Uint8Array(fs.readFileSync('./tests/wasm/fib.wasm'));
         const res = parseModule(data);
         console.log(JSON.stringify(res, null, 2));
     })
