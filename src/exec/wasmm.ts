@@ -62,35 +62,36 @@ export class WasmFuncType {
             }
         }
     }
-    toString() {
+    toString():string {
         return `(${this.parameters.join(",")}) => ${this.returns.join(",")}`;
     }
-    toInstantiation() {
-        const params:parserTypes.localsVal[] = [];
-
-        for(let i=0; i < this.parameters.length; i++) {
-            switch(this.parameters[i]) {
-                case "i32": params.push({value:0, type:0x7F}); break;
-                case "i64": params.push({value:0n, type:0x7E}); break;
-                case "f32": params.push({value:0, type:0x7D}); break;
-                case "f64": params.push({value:0, type:0x7C}); break;
-                case "funcref": params.push({value:0, type:0x70}); break;
-                case "externref": params.push({value:0, type:0x6f}); break;
-                case "vectype": params.push({value:0, type:0x7B}); break;
-                default: throw new Error("Invalid return type");
-            }
-        }
-        return params;
-    }
+    
 }
-// export class WasmTableType {
-//     table: parserTypes.tableType;
-//     references: number[];
 
-//     constructor(rawTable:parserTypes.tableType) {
-//         this.table = 
-//     }
-// }
+function instantiateParams(parameters:WasmType[]):parserTypes.localsVal[] {
+    const params:parserTypes.localsVal[] = [];
+    for(let i=0; i < parameters.length; i++) {
+        switch(parameters[i]) {
+            case "i32": params[i] = {value:0, type:0x7F}; break;
+            case "i64": params[i] = {value:0n, type:0x7E}; break;
+            case "f32": params[i] = {value:0, type:0x7D}; break;
+            case "f64": params[i] = {value:0, type:0x7C}; break;
+            case "funcref": params[i] = {value:0, type:0x70}; break;
+            case "externref": params[i] = {value:0, type:0x6f}; break;
+            case "vectype": params[i] = {value:0, type:0x7B}; break;
+            default: throw new Error("Invalid return type");
+        }
+    }
+    return params;
+}
+function instantiateLocals(locals:parserTypes.valType[]){
+    let instantiatedLocals:parserTypes.localsVal[] = [];
+    for(let i=0; i < locals.length; i++) {
+        instantiatedLocals.push({value:0, type:locals[i]});
+    }
+    return instantiatedLocals;
+}
+
 
 export class WebAssemblyMtsStore implements types.Store {
     [immerable] = true;
@@ -105,20 +106,22 @@ export class WebAssemblyMtsStore implements types.Store {
         const addr = frame!.module.mems[0].val;
         return this.mems[addr];
     }
-    executeOp(op: Op | IfElseOp, currLabel:Label):void | Op[] {
+    executeOp(op: Op | IfElseOp, currLabel:Label):void | Op[] | Label {
         const len = this.stack.length;
         switch(op.id){
             case Opcode.Call:{
                 const frame = lookForFrame(this.stack);
                 if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
+                
                 let funcInstance:types.FuncInst;
                 let funcidx: number;
-                let label:Label, newFrame:Frame;
+                let newLabel:Label, newFrame:Frame;
                 funcidx = op.args as number;
                 funcInstance = this.funcs[funcidx];
-                label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
-                const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
-                const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
+                
+                newLabel = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
+                const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
+                const locals:parserTypes.localsVal[] = instantiateLocals(funcInstance!.code.locals);
                 const allLocals:parserTypes.localsVal[] = params.concat(locals);
                 newFrame = new Frame(allLocals, funcInstance!.module, funcidx!);
                 const parametersArity = funcInstance!.type.parameters.length;
@@ -130,13 +133,14 @@ export class WebAssemblyMtsStore implements types.Store {
                 execute.processParams(parametersArity, funcInstance!.type.parameters, args, newFrame.locals);
                 
                 this.stack.push(newFrame);
-                this.stack.push(label);
+                this.stack.push(newLabel);
                 break;
             }
             case Opcode.Return:{
                 //Find the current Frame
                 const frame = lookForFrame(this.stack);
                 if(frame! == undefined) throw new Error("No frame on stack found");
+                // console.log("locals before return",current(frame.locals))
                 //get the number of return values
                 let funcTypeAddr = frame.module.funcs[frame.currentFunc];
                 const type = frame.module.types[funcTypeAddr.val];
@@ -167,7 +171,8 @@ export class WebAssemblyMtsStore implements types.Store {
                 const frame = lookForFrame(this.stack);
                 const moduleTypes = frame!.module.types;
                 // passing the boolean (constant numtype), the ifop (containing the block), the store and the module types reference
-                const labelRes = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes, this.stack);
+                const labelRes:Label | undefined = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes, this.stack);
+                if(labelRes == undefined) break;
                 this.stack.push(labelRes);
                 break;
             }
@@ -175,7 +180,7 @@ export class WebAssemblyMtsStore implements types.Store {
                 // a br will branch at the end of it
                 const frame = lookForFrame(this.stack);
                 const moduleTypes = frame!.module.types;
-                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack);
+                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack)!;
                 labelRes.isblock = true;
                 this.stack.push(labelRes);
                 break;
@@ -185,17 +190,17 @@ export class WebAssemblyMtsStore implements types.Store {
                 // a br will branch at the start of it
                 const frame = lookForFrame(this.stack);
                 const moduleTypes = frame!.module.types;
-                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack);
+                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack)!;
                 this.stack.push(labelRes);
                 break;
             }
             case Opcode.Br:{
-                execute.br(this.stack, op.args as number);
-                break;
+                currLabel = execute.br(this.stack, op.args as number);
+                return currLabel;
             }
             case Opcode.BrIf:{
-                execute.br_if(this.stack.pop()!, this.stack, op.args as number);
-                break;
+                const loopLabel = execute.br_if(this.stack.pop()!, this.stack, op.args as number);
+                if (loopLabel != undefined) return loopLabel;
             }
             case Opcode.End:{
                 break;
@@ -637,37 +642,37 @@ export class WebAssemblyMts {
         for(let type of typesSection!.content) {
             mtsModule.types.push(new WasmFuncType(type));
         }
-        const funcTypeSignatures = functionSignatures?.content;
-        
-        // FuncInst
 
-        // imported ones:
+        // FuncInst
+            // imported ones:
         let imports = [];
         if(importSection != undefined){
             imports = importSection?.content;
             // for now imports will be handled as single raw functions passed on instantiate
             for (let i = 0; i < imports.length; i++) {
-                const currTypeSignature = funcTypeSignatures[imports[i].description];
                 //@ts-ignore
                 // const currFunc = importObject.imports[imports[i].name[1]];
                 let func:types.FuncInst= {
-                    type: mtsModule.types[currTypeSignature],
+                    type: mtsModule.types[imports[i].description],
                     module: mtsModule,
                     code: {locals:[], body:[new Op(Opcode.End, [])]} // !!PLACEHOLDER!!
                 }
-                // WebAssemblyMts.store.funcs.push(func);
-                // mtsModule.funcs.push(
-                //     {kind: "funcaddr", val: funcTypeSignatures[imports[i].description]}
-                // )
+                WebAssemblyMts.store.funcs.push(func);
+                mtsModule.funcs.push(
+                    {kind: "funcaddr", val: imports[i].description}
+                )
             }
         }
-
-        // declared ones:
+        
+            // declared ones:
+        const funcTypeSignatures = functionSignatures?.content;
         const codes = codeSection?.content;
         // the loop will resume from the next index after the last import object
+        let currentFunctionIndex = 0; // separate iterator variable
         for (let i = imports.length; i < codes.length; i++) {
-            const currTypeSignature = funcTypeSignatures[i];
-            const currCodeContent = codes[i].content;
+
+            const currTypeSignature = funcTypeSignatures[currentFunctionIndex];
+            const currCodeContent = codes[currentFunctionIndex].content;
 
             let func:types.FuncInst= {
                 type: mtsModule.types[currTypeSignature],
@@ -676,8 +681,9 @@ export class WebAssemblyMts {
             }
             WebAssemblyMts.store.funcs.push(func);
             mtsModule.funcs.push(
-                {kind: "funcaddr", val: funcTypeSignatures[i]}
+                {kind: "funcaddr", val: funcTypeSignatures[currentFunctionIndex]}
             )
+            currentFunctionIndex++;
         }
         // TableInst
         
@@ -834,23 +840,24 @@ export class WebAssemblyMts {
     static run(func:types.FuncAddr, ...args: unknown[]):any;
 
     static run(func:unknown, ...args: unknown[]){
+        args = args.flat(1);
         let funcInstance:types.FuncInst;
         let funcidx: number;
         let label:Label, frame:Frame;
         if(isExportInst(func)){
             funcidx = func.value.val;
-            funcInstance = this.store.funcs[funcidx]; // wrong
+            funcInstance = this.store.funcs[funcidx];
         }else if(isFuncAddr(func)){
             funcidx = func.val;
             funcInstance = this.store.funcs[funcidx];
         }else{
             throw new Error("Bad function reference.")
-        }
+        }   
         // label (arity and code)
         label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
         // activation frame (locals and module)
-        const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
-        const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
+        const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
+        const locals:parserTypes.localsVal[] = instantiateLocals(funcInstance!.code.locals);
         const allLocals:parserTypes.localsVal[] = params.concat(locals);
         frame = new Frame(allLocals, funcInstance!.module, funcidx!);
         this.store.stack.push(frame);
@@ -872,13 +879,16 @@ export class WebAssemblyMts {
         // });
         try {
         while(lookForLabel(this.store.stack) != undefined) {
-            const currLabel = lookForLabel(this.store.stack)!;
+            let currLabel = lookForLabel(this.store.stack)!;
             // console.log("stack after label",this.store.stack);
 
             if(currLabel.instrIndex < currLabel.instr.length){
                 // console.log("instrindex",currLabel.instrIndex);
-                // console.log("Instruction:",currLabel.instr[currLabel.instrIndex].kind)
-                this.store.executeOp(currLabel.instr[currLabel.instrIndex], currLabel);
+                // console.log("Instruction:",currLabel.instr[currLabel.instrIndex].kind, currLabel.instr[currLabel.instrIndex].args)
+                const res = this.store.executeOp(currLabel.instr[currLabel.instrIndex], currLabel);
+                if (res instanceof Label){ // changing label pointer mainly for br/brif
+                    currLabel = res;
+                } 
                 currLabel.instrIndex++;
             }else{
                 const labelRes: Op[] = [];
@@ -916,6 +926,7 @@ export class WebAssemblyMts {
     static runTT(func:types.FuncAddr, ...args: unknown[]):any;
 
     static runTT(func:unknown, ...args: unknown[]){
+        args = args.flat(1);
         let funcInstance:types.FuncInst;
         let funcidx: number;
         let label:Label, frame:Frame;
@@ -936,7 +947,6 @@ export class WebAssemblyMts {
         };
         const parametersArity = funcInstance!.type.parameters.length;
         const returnsArity = funcInstance!.type.returns.length;
-
         // deep copying the store
         let setupStore = (store: WebAssemblyMtsStore) => {
             let result = structuredClone(store);
@@ -947,8 +957,8 @@ export class WebAssemblyMts {
         const produced = produceWithPatches(setupStore(this.store), (state)=>{
             label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
             // activation frame (locals and module)
-            const params:parserTypes.localsVal[] = funcInstance!.type.toInstantiation();
-            const locals:parserTypes.localsVal[] = funcInstance!.code.locals;
+            const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
+            const locals:parserTypes.localsVal[] = instantiateLocals(funcInstance!.code.locals);
             const allLocals:parserTypes.localsVal[] = params.concat(locals);
             frame = new Frame(allLocals, funcInstance!.module, funcidx!);
             state.stack.push(frame);
@@ -968,18 +978,22 @@ export class WebAssemblyMts {
 
     static executeInstructionsTT(returnsArity:number, stores:types.storeProducePatches): { stores: types.storeProducePatches, val: Op | Op[]} {
         let currStore = stores.states[stores.states.length-1];
+        console.log("curr",lookForLabel(currStore.stack))
         // console.log("store:",currStore)
         try {
         while(lookForLabel(currStore.stack) != undefined) {
             // debugger;
             // console.log("stack after label",this.store.stack);
             const produced = produceWithPatches(currStore, (state)=>{
-                const currLabel = lookForLabel(state.stack)!;
+                let currLabel = lookForLabel(state.stack)!;
                 if(currLabel.instrIndex < currLabel.instr.length){
-                    // console.log("instrindex",currLabel.instrIndex);
+                    // console.log("instrindex",currLabel.instrIndex, "len", currLabel.instr.length);
                     // console.log("Instruction:",currLabel.instr[currLabel.instrIndex].kind)
-                    // console.log("curr op",currLabel.instr[currLabel.instrIndex].kind, "len",state.stack.length)
-                    state.executeOp(currLabel.instr[currLabel.instrIndex], currLabel);
+                    // console.log("curr op",currLabel.instr[currLabel.instrIndex].kind, "args", currLabel.instr[currLabel.instrIndex].args)
+                    const res = state.executeOp(currLabel.instr[currLabel.instrIndex], currLabel);
+                    if (res instanceof Label){ // changing label pointer mainly for br/brif
+                        currLabel = res;
+                    } 
                     currLabel.instrIndex++;
                 }else{
                     const labelRes: Op[] = [];
@@ -1046,7 +1060,6 @@ export function lookForFrame(stack:Op[]){
     }
     if(frame! == undefined) throw new Error("No frame on stack found");
 }
-
 export function lookForFrameNoError(stack:Op[]){
     let frame: Frame;
     for (let i = stack.length; i >= 0; i--) {

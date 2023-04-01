@@ -2,7 +2,7 @@ import { assert } from 'console';
 import { current } from 'immer';
 import { Op, IfElseOp, BlockOp } from '../helperParser';
 import {Opcode} from "../opcodes"
-import { valType, localsVal, memarg } from '../types';
+import { valType, memarg, localsVal } from '../types';
 import { FuncRef, MemInst } from './types';
 import { ValTypeEnum , rawConstBits, WasmConsts } from './types'
 import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, 
@@ -52,7 +52,6 @@ function isValType(type: unknown): boolean{
 
 export function processParams(arity:number, types: WasmType[], args: unknown[], locals:localsVal[]){
     if(arity<args.length) throw new Error (`Unexpected number of parameters. Got ${args.length}, expected ${arity}.`);
-    
     for (let i = 0; i < args.length; i++) {
         let currentArg = args[i];
         if(typeof args[i] == "number") {
@@ -83,7 +82,6 @@ export function processParams(arity:number, types: WasmType[], args: unknown[], 
 }
 
 // OPERATIONS
-
 // math op
 export function i32add(x:Op, y:Op):Op{
     checkDualArityFn(x,y, Opcode.I32Const);
@@ -372,7 +370,9 @@ export function ifinstr(bool: Op, ifop:IfElseOp, moduleTypes:WasmFuncType[], sta
     const block =  bool.args ? ifop.ifBlock : ifop.elseBlock;
     return executeBlock(block!, moduleTypes, stack);
 }
-export function executeBlock(block:BlockOp, moduleTypes:WasmFuncType[], stack: Op[]){
+export function executeBlock(block:BlockOp, moduleTypes:WasmFuncType[], stack: Op[]):Label | undefined{
+    if(block == undefined) return undefined; // else block not existing
+
     let label:Label;
     if(isValType(block.bt)){ // no params if single valtype
         
@@ -396,46 +396,53 @@ export function executeBlock(block:BlockOp, moduleTypes:WasmFuncType[], stack: O
     return label;
 }
 
-export function br(stack:Op[], labelidx:number){
+export function br(stack:Op[], labelidx:number):Label{
     if(labelCount(stack) < labelidx+1) throw new Error ("Not enough labels in the stack.");
-    const res = lookForLabel(stack, labelidx)!;
+    const currLoopLabel = lookForLabel(stack, labelidx)!;
     const resVals = [];
     // debugger;
-    // node --inspect-brk ./node_modules/jest/bin/jest.js -t "RunTest" --runInBand
-    if(res.isblock) {
-        for(let i = 0; i < res.arity; i++){
+    // node --inspect-brk ./node_modules/jest/bin/jest.js -t "RunTest" --runInBand (debugger script)
+    if(currLoopLabel.isblock) {
+        for(let i = 0; i < currLoopLabel.arity; i++){
             const val = stack.pop();
             // @TODO: implement type check for constants, references, and null
             resVals.push(val!);
         }
     }else{
-        if(res.type instanceof WasmFuncType && res.type.parameters.length>0) {
-            for(let i = 0; i<res.type.parameters.length; i++){
+        if(currLoopLabel.type instanceof WasmFuncType && currLoopLabel.type.parameters.length>0) {
+            for(let i = 0; i<currLoopLabel.type.parameters.length; i++){
                 const val = stack.pop();
                 // @TODO: implement type check for constants, references, and null
                 resVals.push(val!);
             }
         }
     }
-    while(stack[stack.length-1] != res) {
+    
+    while(stack[stack.length-1] != currLoopLabel) {
         stack.pop();
     }
-    if(res.isblock){
+
+    console.log("Stack during br", current(stack))
+    if(currLoopLabel.isblock){
         stack.pop();
         resVals.forEach(val => {
             stack.push(val);
         });
     }else{
-        res.instrIndex = -1; // immediatly gets incremented when it goes back to the label exec
+        currLoopLabel.instrIndex = -1; // immediatly gets incremented when it goes back to the label exec
         // ^ This will become 0 ^
         resVals.forEach(val => {
             stack.push(val);
         });
     }
+
+    return currLoopLabel;
 }
 
-export function br_if(bool: Op, stack: Op[], labelidx:number){
-    if(bool.args ? true : false) br(stack, labelidx);
+export function br_if(bool: Op, stack: Op[], labelidx:number):Label | undefined{
+    if(bool.args ? true : false){
+        return br(stack, labelidx);
+    } 
 }
 
 // getters and setters
