@@ -7,6 +7,8 @@
     "test": "tests"
   },
   "scripts": {
+    "watch": "npx tsc --watch",
+    "server": "npx ts-node ./src/api.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "testDebug": "node --inspect-brk ./node_modules/jest/bin/jest.js -t \"RunTest\" --runInBand --verbose=true",
     "testDebugTT": "node --inspect-brk ./node_modules/jest/bin/jest.js -t \"ImmutableStateTest\" --runInBand --verbose=true"
