@@ -19,14 +19,15 @@ export type stateDescriptor = {
 
 export function buildStateStrings(stores:storeProducePatches, customSec: custom[]):stateDescriptor[]{
     const stateDescriptors:stateDescriptor[] = [];
-
+    // console.log("stack",stores.states);
     for (let i = 0; i < stores.states.length; i++) {
+        
         const currStore = stores.states[i];
         let elemDescriptors:elemDescriptor[] = [];
         for(let j = currStore.stack.length-1; j>=0; j--){
-            const elem = currStore.stack[j]
+            const elem = currStore.stack[j];
+            // console.log("i now",i);
             const [type, description] = stringBuilder(elem, currStore, customSec);
-
             elemDescriptors.push({
                 type,
                 description
@@ -105,32 +106,35 @@ export function stringBuilder(elem:Op, currStore: WebAssemblyMtsStore, customSec
     }else if(elem instanceof Label){
         type = "label";
         description = descCurrentLabel(currStore, elem);              
-        }else if (elem instanceof Op){
-        switch(elem.id){
-            case Opcode.I32Const:
-            case Opcode.I64Const:
-            case Opcode.F32Const:
-            case Opcode.F64Const:{
-                type = "stackelem";
-                description = `Element ${elem.kind}: ${elem.args}`;
-                break;
-            }
-            default:{
-                type = "instr";
-                const currFrame = lookForFrame(currStore.stack)!;
-                const funcidx = currFrame?.currentFunc;
-                
-                if(elem.kind.includes("Local")){
-                    // local name for local instructions
-                    const localName:string = localsCustom[funcidx][1][elem.args as number][1][1];
-                    description = `Instruction ${elem.kind}, args ${localName}`;
-                }else{
-                    description = `Instruction ${elem.kind}, args ${elem.args}`;
-                }
-                break;
-            }
+    }else if (elem instanceof Op){
+    switch(elem.id){
+        case Opcode.I32Const:
+        case Opcode.I64Const:
+        case Opcode.F32Const:
+        case Opcode.F64Const:{
+            type = "stackelem";
+            description = `Element ${elem.kind}: ${elem.args}`;
+            break;
         }
+        default:{
+            type = "instr";
+            const currFrame = lookForFrame(currStore.stack)!;
+            const funcidx = currFrame?.currentFunc;
+            
+            if(elem.kind.includes("Local")){
+                // local name for local instructions
+                const localName:string = localsCustom[funcidx][1][elem.args as number][1][1];
+                description = `Instruction ${elem.kind}, args ${localName}`;
+            }else{
+                description = `Instruction ${elem.kind}, args ${elem.args}`;
+            }
+            break;
+        }
+    }
     }else{
+        //@ts-ignore
+        console.error(elem instanceof Op);
+        console.error(elem);
         throw new Error(`Invalid object "${JSON.stringify(elem)}"`);
     }
     return [type, description];
@@ -144,7 +148,7 @@ export type patchesDescriptor = {
 export function buildPatchesStrings(stores:storeProducePatches, customSec: custom[]):patchesDescriptor[]{ 
     const [moduleCustom, funcsCustom, localsCustom] = getCustoms(customSec);
     const changes:patchesDescriptor[] = [];
-
+    console.log("aaaa",stores);
     stores.patches.forEach((patch, i) => {
         const operations:string[] = [];
         patch.forEach((operation, j) => {
