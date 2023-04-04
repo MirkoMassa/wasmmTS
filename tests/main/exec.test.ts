@@ -177,9 +177,8 @@ describe("ImmutableStateTest", ()=>{
         const buffer = fs.readFileSync('./tests/wasm/loop.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance);
         debugger;
-        const res = inst.exportsTT.varloop(4);
+        const res = inst.exportsTT.varloop(7);
         console.log(res.val);
-        expect(res.val.args == 6);
     })
     test("arraysTT", async () => {
         const buffer = fs.readFileSync('./tests/wasm/arrays.wasm');
