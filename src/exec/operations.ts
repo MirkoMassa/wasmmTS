@@ -422,7 +422,6 @@ export function br(stack:Op[], labelidx:number):Label{
         stack.pop();
     }
 
-    console.log("Stack during br", current(stack))
     if(currLoopLabel.isblock){
         stack.pop();
         resVals.forEach(val => {
