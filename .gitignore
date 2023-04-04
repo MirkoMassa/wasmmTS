@@ -3,3 +3,4 @@ tests/tools
 coverage
 wasmmts-A_wasm_interpreter.code-workspace
 build
+notes_about_interpreter.txt
