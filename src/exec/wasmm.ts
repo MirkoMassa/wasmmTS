@@ -1,4 +1,4 @@
-import { Immer, produce, produceWithPatches, immerable,  } from 'immer';
+import { Immer, produce, produceWithPatches, immerable, setAutoFreeze,  } from 'immer';
 import { current } from 'immer';
 import {enablePatches} from "immer"
 enablePatches();
@@ -14,6 +14,7 @@ export type WasmType = "i32" | "i64" | "f32" | "f64" | "funcref" | "externref" |
 
 export class Label extends Op{
     [immerable] = true;
+    setAutoFreeze = false;
     constructor(public arity:number, public instr: Op[], public type:WasmFuncType | parserTypes.valType | undefined, 
         public instrIndex: number = 0, public isblock:Boolean = false, public parameters:Op[] = []){
         super(Opcode.Label, []);
@@ -21,6 +22,7 @@ export class Label extends Op{
 }
 export class Frame extends Op{
     [immerable] = true;
+    setAutoFreeze = false;
     constructor(public locals:parserTypes.localsVal[], public module:types.WebAssemblyMtsModule, public currentFunc: number){
         super(Opcode.Frame, []);
     }
@@ -28,6 +30,7 @@ export class Frame extends Op{
 
 export class WasmFuncType {
     [immerable] = true;
+    setAutoFreeze = false;
     parameters: WasmType[];
     returns: WasmType[];
     constructor(rawType: parserTypes.funcType) {
@@ -95,6 +98,7 @@ function instantiateLocals(locals:parserTypes.valType[]){
 
 export class WebAssemblyMtsStore implements types.Store {
     [immerable] = true;
+    setAutoFreeze = false;
     public stack: Op[];
     constructor(public funcs: types.FuncInst[]=[], public tables: types.TableInst[]=[], public mems: types.MemInst[]=[], 
         public globals: types.GlobalInst[]=[], public exports: types.ExportInst[]=[]) {
@@ -502,6 +506,7 @@ export class WebAssemblyMtsStore implements types.Store {
                 const frame = lookForFrame(this.stack);
                 const localToGet:parserTypes.localsVal = frame!.locals[op.args as number];
                 this.stack.push(execute.getLocal(localToGet));
+                // console.log(this.stack[this.stack.length-1]);
                 break;
             }
             case Opcode.TeeLocal:{ // like set but keeping the const
@@ -605,6 +610,7 @@ export class WebAssemblyMtsStore implements types.Store {
 export class WebAssemblyMts {
     static store: WebAssemblyMtsStore;
     [immerable] = true;
+    setAutoFreeze = false;
 
     static async compile(bytes:Uint8Array, importObject:Object | undefined): Promise<[types.WebAssemblyMtsModule, object]> {
         console.log("GOT INTO COMPILE");
@@ -612,7 +618,10 @@ export class WebAssemblyMts {
         let [moduleTree, length] = parseModule(bytes);
 
         // assert(length == bytes.byteLength, "Module byte length error.");
-        if(WebAssemblyMts.store == undefined) WebAssemblyMts.store = new WebAssemblyMtsStore();
+
+        //trying to create a new store at every compile
+        WebAssemblyMts.store = new WebAssemblyMtsStore();
+        // if(WebAssemblyMts.store == undefined) WebAssemblyMts.store = new WebAssemblyMtsStore();
         let mtsModule: types.WebAssemblyMtsModule = {
             types: [],
             funcs: [],
@@ -809,11 +818,12 @@ export class WebAssemblyMts {
             })
             return instantiatedSource;
 
-        }else if(isWebAssemblyModule(moduleOrBytes)) {
+        }else if(isWebAssemblyModule(moduleOrBytes)) {  
             // @TODO implement importobject  
             const instantiatedSource: types.WebAssemblyMtsInstantiatedSource =
             {module: moduleOrBytes, instance:{exports: {}, exportsTT: {}, object: undefined, custom: {}}};
             moduleOrBytes.exports.forEach(exp => {
+                
                 if(exp.value.kind == "funcaddr"){
                     instantiatedSource.instance.exports[exp.valName] = (...args: any) => {
                         return WebAssemblyMts.run(exp, ...args);
@@ -948,13 +958,15 @@ export class WebAssemblyMts {
         const parametersArity = funcInstance!.type.parameters.length;
         const returnsArity = funcInstance!.type.returns.length;
         // deep copying the store
-        let setupStore = (store: WebAssemblyMtsStore) => {
+        let setupStore = (store: WebAssemblyMtsStore) => { // GUILTY !!!
             let result = structuredClone(store);
             Object.setPrototypeOf(result, Object.getPrototypeOf(store));
             result[immerable] = true;
+            console.log("store clone",result)
             return result;
         } 
         const produced = produceWithPatches(setupStore(this.store), (state)=>{
+        // const produced = produceWithPatches(this.store, (state)=>{
             label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
             // activation frame (locals and module)
             const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
@@ -993,7 +1005,7 @@ export class WebAssemblyMts {
                     const res = state.executeOp(currLabel.instr[currLabel.instrIndex], currLabel);
                     if (res instanceof Label){ // changing label pointer mainly for br/brif
                         currLabel = res;
-                    } 
+                    }
                     currLabel.instrIndex++;
                 }else{
                     const labelRes: Op[] = [];
