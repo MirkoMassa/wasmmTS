@@ -20,14 +20,16 @@ export type stateDescriptor = {
 export function buildStateStrings(stores:storeProducePatches, customSec: custom[]):stateDescriptor[]{
     const stateDescriptors:stateDescriptor[] = [];
     // console.log("stack",stores.states);
+    const [moduleCustom, funcsCustom, localsCustom] = getCustoms(customSec);
     for (let i = 0; i < stores.states.length; i++) {
         
         const currStore = stores.states[i];
         let elemDescriptors:elemDescriptor[] = [];
+        // console.log(i,currStore.stack);
         for(let j = currStore.stack.length-1; j>=0; j--){
             const elem = currStore.stack[j];
-            // console.log("i now",i);
-            const [type, description] = stringBuilder(elem, currStore, customSec);
+            
+            const [type, description] = stringBuilder(elem, currStore, moduleCustom, funcsCustom, localsCustom);
             elemDescriptors.push({
                 type,
                 description
@@ -97,8 +99,7 @@ export function getCustoms(customSec: custom[]):[namesVector, nameAssoc[], indir
     return [moduleCustom, funcsCustom, localsCustom]
 }
 
-export function stringBuilder(elem:Op, currStore: WebAssemblyMtsStore, customSec:custom[]):[descriptionTypes, string]{
-    const [moduleCustom, funcsCustom, localsCustom] = getCustoms(customSec);
+export function stringBuilder(elem:Op, currStore: WebAssemblyMtsStore, moduleCustom:namesVector, funcsCustom:nameAssoc[], localsCustom:indirectNameAssoc[]):[descriptionTypes, string]{
     let type:descriptionTypes, description = "";
     if(elem instanceof Frame){
         type = "frame";
@@ -148,7 +149,7 @@ export type patchesDescriptor = {
 export function buildPatchesStrings(stores:storeProducePatches, customSec: custom[]):patchesDescriptor[]{ 
     const [moduleCustom, funcsCustom, localsCustom] = getCustoms(customSec);
     const changes:patchesDescriptor[] = [];
-    console.log("aaaa",stores);
+    // console.log("stores",stores);
     stores.patches.forEach((patch, i) => {
         const operations:string[] = [];
         patch.forEach((operation, j) => {
