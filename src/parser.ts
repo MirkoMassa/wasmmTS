@@ -1,7 +1,7 @@
 import  * as types from "./types";
 import {WASMSectionID} from "./types";
 import {decodeUnsignedLeb128 as lebToInt} from "./leb128ToInt"
-import * as bp from "./bodyParser";
+import * as bp from "./sectionParser";
 import * as helperParser from "./helperParser";
 // Generic classes
 export class WasmModule implements types.WASMModule {
