@@ -122,8 +122,9 @@ export class WebAssemblyMtsStore implements types.Store {
                 let newLabel:Label, newFrame:Frame;
                 funcidx = op.args as number;
                 funcInstance = this.funcs[funcidx];
-                
-                newLabel = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
+                const code = funcInstance.code.body as Op[];
+                // console.log('is that op[]',current(code))
+                newLabel = new Label(funcInstance!.type.returns.length, code, funcInstance!.type);
                 const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
                 const locals:parserTypes.localsVal[] = instantiateLocals(funcInstance!.code.locals);
                 const allLocals:parserTypes.localsVal[] = params.concat(locals);
@@ -214,7 +215,7 @@ export class WebAssemblyMtsStore implements types.Store {
             case Opcode.I64Const:
             case Opcode.F32Const:
             case Opcode.F64Const:{
-                this.stack.push(op)
+                this.stack.push(new Op(op.id, op.args, op.indexNum));
                 break;
             }
             // math
@@ -613,7 +614,7 @@ export class WebAssemblyMts {
     setAutoFreeze = false;
 
     static async compile(bytes:Uint8Array, importObject:Object | undefined): Promise<[types.WebAssemblyMtsModule, object]> {
-        console.log("GOT INTO COMPILE");
+        console.log("Compiling...");
         //call parser on the bytes
         let [moduleTree, length] = parseModule(bytes);
 
@@ -771,7 +772,7 @@ export class WebAssemblyMts {
             WebAssemblyMts.store.exports.push(exports)
             mtsModule.exports.push(exports)
         }
-        console.log("exiting");
+        console.log("exiting.");
         return [mtsModule, customSection];
         //returned module is basically the parse tree
         //compile does not run the code at all
@@ -958,11 +959,11 @@ export class WebAssemblyMts {
         const parametersArity = funcInstance!.type.parameters.length;
         const returnsArity = funcInstance!.type.returns.length;
         // deep copying the store
-        let setupStore = (store: WebAssemblyMtsStore) => { // GUILTY !!!
+        let setupStore = (store: WebAssemblyMtsStore) => {
             let result = structuredClone(store);
             Object.setPrototypeOf(result, Object.getPrototypeOf(store));
             result[immerable] = true;
-            console.log("store clone",result)
+            // console.log("store clone",result)
             return result;
         } 
         const produced = produceWithPatches(setupStore(this.store), (state)=>{
@@ -990,7 +991,7 @@ export class WebAssemblyMts {
 
     static executeInstructionsTT(returnsArity:number, stores:types.storeProducePatches): { stores: types.storeProducePatches, val: Op | Op[]} {
         let currStore = stores.states[stores.states.length-1];
-        console.log("curr",lookForLabel(currStore.stack))
+        // console.log("curr",lookForLabel(currStore.stack))
         // console.log("store:",currStore)
         try {
         while(lookForLabel(currStore.stack) != undefined) {
