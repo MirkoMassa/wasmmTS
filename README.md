@@ -9,7 +9,8 @@
 ## What's the deal?
 wasmmTS is just a parser => evaluator => executor of WebAssembly .wasm binary files with a basic interface made in React. The difference between this and other interpreters is that you can see every step of the stack, memory and more. <br>
 Definitely the most challenging and complete project I've ever done, I'm planning on doing videos where I explain what I've done step by step.
-## How does it work?
+## How does it work? [Try the demo!](www.mirkomassa.com)
+
 ![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWI5ODA4NjUwZjgwYzNmMDcyYTI3ZGE0NmYwNWFjNjE0OGMxYzdjNSZjdD1n/5gSeeFtGeNTtePvQoJ/giphy.gif)
 # How is it structured?
 ---------------------------------------
