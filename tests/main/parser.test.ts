@@ -3,8 +3,8 @@ import {parseModule} from "../../src/parser";
 import  * as types from "../../src/types";
 import  {WASMSectionID} from "../../src/types";
 import {decodeUnsignedLeb128 as lebToInt} from "../../src/leb128ToInt"
-import * as bp from "../../src/bodyParser";
-import { parseCode } from "../../src/bodyParser";
+import * as bp from "../../src/sectionParser";
+import { parseCode } from "../../src/sectionParser";
 import * as helperParser from "../../src/helperParser";
 import * as ip from "../../src/instructionsParser";
 import fs from 'fs';
