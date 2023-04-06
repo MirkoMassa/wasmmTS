@@ -1,4 +1,4 @@
-import * as bp from "./bodyParser";
+import * as bp from "./sectionParser";
 import * as parser from "./parser";
 import {BlockOp, Op} from "./helperParser";
 
