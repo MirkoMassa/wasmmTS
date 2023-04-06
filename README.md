@@ -211,6 +211,6 @@ setupStore is a function I made to create a deep copy of the store (Immer by def
     return result;
   } 
 ```
-To see the interface I made in React you can check the frontend repository https://github.com/](https://github.com/MirkoMassa/wasmmts-gui
+To see the interface I made in React you can check the [frontend repository](https://github.com/MirkoMassa/wasmmts-gui).
 
 ![](https://media.tenor.com/P_-HUAtwhLwAAAAC/vegeta-dbz.gif)
