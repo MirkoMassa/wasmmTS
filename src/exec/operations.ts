@@ -6,7 +6,7 @@ import { valType, memarg, localsVal } from '../types';
 import { FuncRef, MemInst } from './types';
 import { ValTypeEnum , rawConstBits, WasmConsts } from './types'
 import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, 
-    Frame, WebAssemblyMts, labelCount, lookForLabel, memCheck } from './wasmm';
+    Frame, WebAssemblyMts, labelCount, lookForLabel, memCheck, MaskedArrayObject } from './wasmm';
 // utils
 export function checkDualArityFn(x:Op, y:Op, opcode:Opcode) {
     if(x.id != opcode || y.id != opcode) 
@@ -363,6 +363,16 @@ export function f64ge(x:Op, y:Op) {
     return new Op(Opcode.F64Const, 0);
 }
 
+// export function i32popcnt(x:Op) {
+//     checkTypeOpcode(x, Opcode.I32Const);
+//     let count = 0;
+//      while (x) {
+//        count += x.args as number & 1;
+//        x.args as number >>= 1;
+//      }
+//      return count;
+// }
+
 //control instruction
 
 export function ifinstr(bool: Op, ifop:IfElseOp, moduleTypes:WasmFuncType[], stack:Op[]) {
@@ -456,22 +466,23 @@ export function getLocal(local:localsVal):Op {
 
 // t.loadN_sx memarg & t.load memarg
 export function load(stack: Op[], type:Opcode, memInst:MemInst, memArgs:memarg, N: 8 | 16 | 32 | 64){
+    const memData = memInst.data as MaskedArrayObject; 
     const location = stack.pop()!;
     checkTypeOpcode(location!, Opcode.I32Const);
     const resOffsetAddress = (location.args as number) + memArgs.offset;
-    if(resOffsetAddress + N/8 > memInst.data.length){
+    if(resOffsetAddress + N/8 > memInst.length){
         throw new Error("Exeeded memData length.");
     }
     let result:number | bigint;
     if(N == 64){
         result = 0n;
         for (let i = 0; i < N/8; i++) {
-            result = result | (BigInt(memInst.data[i + resOffsetAddress]) << 8n*BigInt(i));
+            result = result | (BigInt(memData[i + resOffsetAddress]) << 8n*BigInt(i));
         }
     }else{
         result = 0;
         for (let i = 0; i < N/8; i++) {
-            result = result | (memInst.data[i + resOffsetAddress] << 8*i);
+            result = result | (memData[i + resOffsetAddress] << 8*i);
         }
     }
     stack.push(new Op(type, result));
@@ -479,6 +490,7 @@ export function load(stack: Op[], type:Opcode, memInst:MemInst, memArgs:memarg, 
 
 export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:memarg, hasN:boolean, N: 8 | 16 | 32 | 64){
     // debugger;
+    const memData = memInst.data as MaskedArrayObject; 
     const value = stack.pop();
     checkTypeOpcode(value!, type);
     let rawValue = value?.args as number | bigint;
@@ -486,7 +498,7 @@ export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:me
     // console.log("val and loc",value, location);
     checkTypeOpcode(location!, Opcode.I32Const);
     const resOffsetAddress = (location.args as number) + memArgs.offset;
-    if(resOffsetAddress + N/8 > memInst.data.length){
+    if(resOffsetAddress + N/8 > memInst.length){
         throw new Error("Exeeded memData length.");
     }
     if(hasN && typeof rawValue == "bigint"){
@@ -497,7 +509,7 @@ export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:me
     }
     // for bitWidth/8 {data[i+offset] = ????}
     for (let i = 0; i < N/8; i++) {
-        memInst.data[i + resOffsetAddress] = 0xff & (rawValue as number >> 8*i);
+        memData[i + resOffsetAddress] = 0xff & (rawValue as number >> 8*i);
     }
     // console.log("pushed bytes, ",memInst.data.slice(resOffsetAddress, resOffsetAddress+N/8));
 }
