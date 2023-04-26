@@ -1,7 +1,9 @@
-import { Immer, produce, produceWithPatches, immerable, setAutoFreeze,  } from 'immer';
+import { Immer, produce, produceWithPatches, immerable, setAutoFreeze, enableMapSet,  } from 'immer';
 import { current } from 'immer';
 import {enablePatches} from "immer"
 enablePatches();
+enableMapSet();
+
 import  * as types from "./types";
 import  * as parserTypes from "../types";
 import { ExportSection, parseModule }from "../parser";
@@ -10,6 +12,7 @@ import { Opcode } from "../opcodes"
 import { checkTypeOpcode } from './operations';
 import * as execute from "./operations"
 import { WritableDraft } from 'immer/dist/types/types-external';
+import { createExports } from './export';
 export type WasmType = "i32" | "i64" | "f32" | "f64" | "funcref" | "externref" | "vectype";
 
 export class Label extends Op{
@@ -495,6 +498,17 @@ export class WebAssemblyMtsStore implements types.Store {
                 this.stack.push(execute.f64ge(x, y))
                 break;
             }
+            //clz
+                //clzinstr
+            //popcnt
+            case Opcode.i32popcnt:{
+                // execute.i32popcnt()
+            }
+            case Opcode.i64popcnt:{
+
+            }
+
+
             //getters and setters
             // local get/set
             case Opcode.SetLocal:{
@@ -588,7 +602,7 @@ export class WebAssemblyMtsStore implements types.Store {
                 execute.store(this.stack, Opcode.F64Const, memInst, op.args as parserTypes.memarg, false, 64);
                 break;
             }
-
+            //
 
             // global get/set
             // case Opcode.SetGlobal:{
@@ -633,7 +647,6 @@ export class WebAssemblyMts {
             datas: [],
             exports: []
         }
-
         // custom section content will be returned raw from compile()
         let customSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WACustom)?.content;
 
@@ -714,14 +727,17 @@ export class WebAssemblyMts {
         for(let index in memorySection?.content) {
             
             const vecLength = 65536 * memorySection?.content[index].min;
-            // > 127 into a cell of an Int8arry then it will be read back as a negative number
+            // > 127 into a cell of an UInt8arry then it will be read back as a negative number
             // javascript numbers are 64 floating points numbers
             // negative floating point numbers will all the left most bits to 1. 
             // 1110 + 1 = 0000
-            const data = new Uint8Array(vecLength);
+            // const data = new Uint8Array(vecLength);
+            const data = createMemProxy();
+            console.log(data);
             let mem:types.MemInst= {
                 type: memorySection?.content[index],
-                data
+                data,
+                length: vecLength
             }
             let length = WebAssemblyMts.store.mems.push(mem)
             mtsModule.mems.push(
@@ -741,6 +757,9 @@ export class WebAssemblyMts {
                 {kind: "globaladdr", val: length-1}
             )
         }
+        // let mem : Uint8Array;
+        // let PracticalMem = new Proxy(mem, {magicThings});
+        
         // ElemInst
 
         // for(let index in elemSection?.content) {
@@ -783,40 +802,15 @@ export class WebAssemblyMts {
     static async instantiate(bytes:Uint8Array, importObject?: object): Promise<types.WebAssemblyMtsInstantiatedSource>;
 
     static async instantiate(moduleOrBytes: unknown, importObject?: object): Promise<types.WebAssemblyMtsInstantiatedSource | types.WebAssemblyMtsInstance> {
-        //import object is how many page of memory there are
+        
         if(moduleOrBytes instanceof Uint8Array) {
             const [wmodule, custom]  = await this.compile(moduleOrBytes, importObject);
             const instance:types.WebAssemblyMtsInstance = {exports: {}, exportsTT: {}, object: undefined, custom};
-
             const instantiatedSource: types.WebAssemblyMtsInstantiatedSource = {module: wmodule, instance};
-            wmodule.exports.forEach(exp => {
-                if(exp.value.kind == "funcaddr"){
-                    instantiatedSource.instance.exports[exp.valName] = (...args: any[]) => {
-                        const funcRes:Op | Op[] = WebAssemblyMts.run(exp, ...args);
-
-                        // \/ this is to return directly vals, not Op consts \/
-                        if(funcRes instanceof Op){
-                            return funcRes.args;
-                        }else{
-                            // console.log("func res",funcRes)
-                            const returns:parserTypes.valType[] = [];
-                            funcRes.forEach(op=> {
-                                returns.push(op.args as parserTypes.valType)
-                            });
-                            return returns;
-                        }
-                        
-                    }
-                    // time travel
-                    instantiatedSource.instance.exportsTT[exp.valName] = (...args: any[]) => {
-                        const funcRes:{val: Op | Op[], stores: types.storeProducePatches} = WebAssemblyMts.runTT(exp, ...args);
-                        return funcRes;
-                    }
-                }
-                else if(exp.value.kind == "memaddr"){
-                    instantiatedSource.instance.exports[exp.valName] = WebAssemblyMts.store.mems[exp.value.val].data;
-                }
-            })
+            //import object is how many page of memory there are
+            //@TODO Handle importObject
+            
+            createExports(wmodule.exports, instantiatedSource);
             return instantiatedSource;
 
         }else if(isWebAssemblyModule(moduleOrBytes)) {  
@@ -833,6 +827,12 @@ export class WebAssemblyMts {
                     instantiatedSource.instance.exportsTT[exp.valName] = (...args: any) => {
                         return WebAssemblyMts.runTT(exp, ...args);
                     }
+                }else if(exp.value.kind == "memaddr"){
+                    // imported memory
+                }else if(exp.value.kind == "globaladdr"){
+                    // imported globals
+                }else if(exp.value.kind == "tableaddr"){
+                    // imported tables
                 }
             })
             // moduleOrBytes.exports.forEach(exp =>{
@@ -1129,6 +1129,34 @@ export function constParamsOperationValues(stack:Op[], currLabel:Label): [Op, Op
 }
 export function memCheck(frame:Frame){
     if(frame.module.mems[0] == undefined) throw new Error("Undefined memory.");
+}
+
+/**Extremely important function that permits to create an immerable fake array.*/
+
+export type MaskedArrayObject = Map<string | symbol | number, number> & {[key: string]: number}
+export function createMemProxy(): MaskedArrayObject{ 
+    let wrappedBackingMap = {
+        backingMap: new Map()
+    }
+    // @ts-ignore
+    const MemProxy: MaskedArrayObject = new Proxy(wrappedBackingMap, {
+        get(target, property, receiver) {
+            if(property == "forEach") {
+                return <T, K>(cbFunction: (value: T, key: K, map: Map<K, T>) => void) => {
+                    (target.backingMap as Map<K, T>).forEach(cbFunction);
+                }
+            }
+            if(property == 'set') return Map.prototype.set;
+
+            return target.backingMap.get(property);
+        },
+        set(target, property, value) {
+            let singleValue = new Uint8Array(1);
+            singleValue[0]= value;
+            return target.backingMap.set(property, singleValue[0]) != undefined;
+        }
+    });
+    return MemProxy;
 }
 
 export default WebAssemblyMts;
