@@ -508,7 +508,6 @@ export class WebAssemblyMtsStore implements types.Store {
 
             }
 
-
             //getters and setters
             // local get/set
             case Opcode.SetLocal:{
@@ -660,7 +659,6 @@ export class WebAssemblyMts {
         let elemSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAElement)
         let dataSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAData)
         let exportSection = moduleTree.sections.find(sec => sec.id == parserTypes.WASMSectionID.WAExport)
-
         // Types
         for(let type of typesSection!.content) {
             mtsModule.types.push(new WasmFuncType(type));
@@ -732,11 +730,11 @@ export class WebAssemblyMts {
             // negative floating point numbers will all the left most bits to 1. 
             // 1110 + 1 = 0000
             // const data = new Uint8Array(vecLength);
-            const data = createMemProxy();
-            console.log(data);
+
+            // initializing memory as a placeholder to deep copy it
             let mem:types.MemInst= {
                 type: memorySection?.content[index],
-                data,
+                data: {},
                 length: vecLength
             }
             let length = WebAssemblyMts.store.mems.push(mem)
@@ -835,13 +833,6 @@ export class WebAssemblyMts {
                     // imported tables
                 }
             })
-            // moduleOrBytes.exports.forEach(exp =>{
-            //     if(exp.value.kind == "funcaddr"){
-            //         instantiatedSource.instance.exportsTT[exp.valName] = (...args: any) => {
-            //             return WebAssemblyMts.runTT(exp, ...args);
-            //         }
-            //     }
-            // })
             return instantiatedSource;
         }
         throw new Error("Bad input data");
@@ -863,7 +854,9 @@ export class WebAssemblyMts {
             funcInstance = this.store.funcs[funcidx];
         }else{
             throw new Error("Bad function reference.")
-        }   
+        }
+        // initializing memory
+        initializeMemory(this.store);
         // label (arity and code)
         label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
         // activation frame (locals and module)
@@ -965,9 +958,12 @@ export class WebAssemblyMts {
             result[immerable] = true;
             // console.log("store clone",result)
             return result;
-        } 
+        }
+
         const produced = produceWithPatches(setupStore(this.store), (state)=>{
-        // const produced = produceWithPatches(this.store, (state)=>{
+            // initializing memory
+            initializeMemory(this.store);
+            // label
             label = new Label(funcInstance!.type.returns.length, funcInstance!.code.body, funcInstance!.type);
             // activation frame (locals and module)
             const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
@@ -1050,7 +1046,6 @@ export class WebAssemblyMts {
         }
     }
 }
-
 // helper funcs
 export function isWebAssemblyModule(data: unknown): data is types.WebAssemblyMtsModule {
     //runtime test of the data: if it is true assert something about the type of data to typescript
@@ -1139,7 +1134,7 @@ export function createMemProxy(): MaskedArrayObject{
         backingMap: new Map()
     }
     // @ts-ignore
-    const MemProxy: MaskedArrayObject = new Proxy(wrappedBackingMap, {
+    return new Proxy(wrappedBackingMap, {
         get(target, property, receiver) {
             if(property == "forEach") {
                 return <T, K>(cbFunction: (value: T, key: K, map: Map<K, T>) => void) => {
@@ -1156,7 +1151,12 @@ export function createMemProxy(): MaskedArrayObject{
             return target.backingMap.set(property, singleValue[0]) != undefined;
         }
     });
-    return MemProxy;
 }
-
+function initializeMemory(store:WebAssemblyMtsStore) {
+    store.mems.forEach(mem => {
+        const data = createMemProxy();
+        mem.data = data;
+    });
+    console.log("initialized memes",store.mems);
+}
 export default WebAssemblyMts;
