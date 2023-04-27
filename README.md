@@ -1,15 +1,20 @@
+<img src="https://i.imgur.com/DR3bkAe.png"  width="230" height="230" align="right"/>
+
 # wasmmTS - A time travel .wasm interpreter
+
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=WebAssembly&logoColor=white)](https://webassembly.org/)
 [![Typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Nodejs](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Immerjs](https://svgshare.com/i/riM.svg)](https://immerjs.github.io/immer/)
 <br/>
-[![React](	https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://it.reactjs.org/)
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://it.reactjs.org/)
 [![Expressjs](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+
 ## What's the deal?
 wasmmTS is just a parser => evaluator => executor of WebAssembly .wasm binary files with a basic interface made in React. The difference between this and other interpreters is that you can see every step of the stack, memory and more. <br>
 Definitely the most challenging and complete project I've ever done, I'm planning on doing videos where I explain what I've done step by step.
-## How does it work?
+## How does it work? [Try the demo!](https://www.mirkomassa.com)
+
 ![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWI5ODA4NjUwZjgwYzNmMDcyYTI3ZGE0NmYwNWFjNjE0OGMxYzdjNSZjdD1n/5gSeeFtGeNTtePvQoJ/giphy.gif)
 # How is it structured?
 ---------------------------------------
@@ -210,6 +215,6 @@ setupStore is a function I made to create a deep copy of the store (Immer by def
     return result;
   } 
 ```
-To see the interface I made in React you can check the frontend repository https://github.com/](https://github.com/MirkoMassa/wasmmts-gui
+To see the interface I made in React you can check the [front-end repository](https://github.com/MirkoMassa/wasmmts-gui).
 
 ![](https://media.tenor.com/P_-HUAtwhLwAAAAC/vegeta-dbz.gif)
