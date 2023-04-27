@@ -3,10 +3,11 @@ import { patchPath, storeProducePatches, ValTypeEnum } from "../exec/types";
 import { Op } from "../helperParser";
 import { Opcode } from "../opcodes";
 import { custom, indirectNameAssoc, nameAssoc, namesVector, valType, WASMSectionID } from "../types";
-import { lookForLabel, lookForFrame, Frame, Label, WasmFuncType, WebAssemblyMtsStore, lookForFrameNoError } from "../exec/wasmm";
+import { lookForLabel, lookForFrame, Frame, Label, WasmFuncType, WebAssemblyMtsStore, lookForFrameNoError, MaskedArrayObject } from "../exec/wasmm";
 import { WasmModule } from "../parser";
 import { current } from "immer";
 import path from "path";
+import { objectIsEmpty } from "../utils";
 export type descriptionTypes = "frame" | "label" | "instr" | "stackelem";
 export type elemDescriptor = { 
     type:descriptionTypes, 
@@ -55,10 +56,10 @@ export function descCurrentLabel(currStore:WebAssemblyMtsStore, currLabel:Label 
         else if(typeof currLabel.type == 'number'){
             const valTypeStr = ValTypeEnum[currLabel.type];
             funcType = `() => ${valTypeStr}`;
-        } 
+        }
         else{
             funcType = "absent";
-        } 
+        }
         let instrName = "unknown";
         if(currLabel.instr[currLabel.instrIndex] != undefined){
             instrName = currLabel.instr[currLabel.instrIndex].kind;
@@ -191,10 +192,31 @@ function patchesPaths(path:patchPath):string{
         }else if (typeof elem == "string" && i%2 == 0){
             pathDescription = `${pathDescription}, on '${elem}'`;
         }
-
-        
-            
-        
     }
     return pathDescription;
+}
+export type memDescriptors = string[][]
+export function buildMemStatesStrings(stores:storeProducePatches):memDescriptors{
+    
+    const memStates:memDescriptors = [];
+    stores.states.forEach((state, i) => {
+
+        const currentMems:string[] = [];
+        state.mems.forEach(memInst => {
+            if(objectIsEmpty(memInst.data)){
+                currentMems.push("empty")
+            }else{
+                const memBuffer = memInst.data as MaskedArrayObject;
+                let memBufferString = "";
+                for(let cell in memBuffer){
+                    memBufferString = memBufferString.concat(`[${cell}] 0x`+memBuffer[cell].toString(16)+' ')
+                }
+                memBufferString = memBufferString.slice(0, memBufferString.length-1)
+                currentMems.push(memBufferString);
+            }
+            
+        })
+        memStates.push(currentMems);
+    });
+   return memStates;
 }
