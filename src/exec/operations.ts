@@ -510,6 +510,7 @@ export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:me
     // for bitWidth/8 {data[i+offset] = ????}
     for (let i = 0; i < N/8; i++) {
         memData[i + resOffsetAddress] = 0xff & (rawValue as number >> 8*i);
+        // console.log("mem",memData[i + resOffsetAddress])
     }
     // console.log("pushed bytes, ",memInst.data.slice(resOffsetAddress, resOffsetAddress+N/8));
 }
