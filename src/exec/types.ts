@@ -1,6 +1,6 @@
 import { valType, namesVector, limits, tableType, globalType, refType, funcType, funcComponent } from "../types"
 import { Op } from "../helperParser"
-import {WasmFuncType, WasmType, WebAssemblyMtsStore} from "./wasmm"
+import {MaskedArrayObject, WasmFuncType, WasmType, WebAssemblyMtsStore} from "./wasmm"
 import { Opcode } from "../opcodes"
 export enum ValTypeEnum {
      i32 = 0x7F,
@@ -31,7 +31,9 @@ export type TableInst = {
 }
 export type MemInst = {
     type: limits,
-    data: Uint8Array
+    data: MaskedArrayObject | {},
+    // data: Uint8Array,
+    length: number
 }
 export type GlobalInst = {
     mut: "const" | "mut"
