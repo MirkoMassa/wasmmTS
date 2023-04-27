@@ -4,6 +4,7 @@ import  * as execTypes from "../../src/exec/types";
 import {Op} from "../../src/helperParser"
 import {Opcode} from "../../src/opcodes"
 import * as WMTS from '../../src/exec/wasmm'
+import * as execute from '../../src/exec/operations'
 import fs from 'fs';
 
 describe("RunTest", ()=>{
@@ -18,7 +19,7 @@ describe("RunTest", ()=>{
         const apires = apiInst.fib(8);
         console.log(res.val, apires)
     })
-    test.only("fibit", async () => {
+    test("fibit", async () => {
         const buffer = fs.readFileSync('./tests/wasm/fib.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer);
         const exportsTT = inst.instance.exportsTT;
@@ -112,7 +113,7 @@ describe("RunTest", ()=>{
         console.log(res, oracle);
         expect(res === oracle);
     })
-    test("loadstore", async () => {
+    test.only("loadstore", async () => {
         const buffer = fs.readFileSync('./tests/wasm/loadstore.wasm');
         const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
@@ -126,6 +127,7 @@ describe("RunTest", ()=>{
         console.log("memory output API",tmodule.memory.buffer);
         expect(res === oracle);
     })
+
     test("arrays", async () => {
         const buffer = fs.readFileSync('./tests/wasm/arrays.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}});
@@ -177,7 +179,7 @@ describe("ImmutableStateTest", ()=>{
         const buffer = fs.readFileSync('./tests/wasm/loop.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance);
         debugger;
-        const res = inst.exportsTT.varloop(7);
+        const res = inst. exportsTT.varloop(7);
         console.log(res.val);
     })
     test("arraysTT", async () => {
@@ -282,3 +284,9 @@ describe("sampleFunc", () =>{
         test(21640, 32);
     })
 })
+
+// describe('opcodes', () => { 
+//     it('popcnt', () =>{
+//         execute.popcnt()
+//     })
+//  })
