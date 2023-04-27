@@ -15,3 +15,7 @@ export function logAsHex(numbers:number[]){
     res = res.slice(0, res.length-2)
     console.log(res);
 }
+
+export function objectIsEmpty(obj:Object):boolean {
+    return Object.keys(obj).length === 0;
+}
