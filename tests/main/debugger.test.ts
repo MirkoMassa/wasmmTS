@@ -4,7 +4,7 @@ import  * as execTypes from "../../src/exec/types";
 import {Op} from "../../src/helperParser"
 import {Opcode} from "../../src/opcodes"
 import * as WMTS from '../../src/exec/wasmm'
-import { buildPatchesStrings, buildStateStrings, descriptionTypes, elemDescriptor, stateDescriptor } from '../../src/debugging/stringifier';
+import { buildMemStatesStrings, buildPatchesStrings, buildStateStrings, descriptionTypes, elemDescriptor, stateDescriptor } from '../../src/debugging/stringifier';
 import fs, { stat } from 'fs';
 import { custom } from '../../src/types';
 
@@ -32,7 +32,7 @@ describe("buildStateStrings", ()=>{
 })
 
 describe("patches", () => {
-    test.only("loop.wasm patches", async () => {
+    test("loop.wasm patches", async () => {
         const buffer = fs.readFileSync('./tests/wasm/loop.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance);
         const customSection = inst.custom as custom[];
@@ -43,5 +43,18 @@ describe("patches", () => {
         
         console.log(JSON.stringify(patches, null, 2));
 
+    })
+})
+
+describe("memLogger", () =>{
+    test("loadstore.wasm", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/loadstore.wasm');
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance);
+        const res = inst.exportsTT.i32store(0x2739FF12);
+        // const res = inst.exportsTT.i32store(0x2739);
+        // should add to mem 0x27 0x39 0xFF 0x12
+        const store = res.stores as execTypes.storeProducePatches;
+        const memStates = buildMemStatesStrings(store);
+        console.log("states",memStates)
     })
 })
