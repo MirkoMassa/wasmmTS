@@ -80,9 +80,19 @@ export class prefixedOp {
 
 
 export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):[Op[], number]{
-    // console.log("case 1");
-    // console.log("PE", index, length)
+
     let expr: Op[] = [];
+    if(length == 0){ // implicit length
+        while(bytes[index] != op.Opcode.End){
+            let op: Op;
+            [op, index] = parseInstruction(bytes, index);
+            expr.push(op);
+        }
+        expr.push(new Op(op.Opcode.End, []));
+        return [expr, index+1];
+    }
+    
+    // explicit length
     let baseIndex = index;
     while(index < baseIndex + length){
         let op: Op;
@@ -99,6 +109,7 @@ export function parseExpr(bytes: Uint8Array, index: number, length: number = 0):
     
     return [expr, index];
 }
+
 export function parseBlockExpr(bytes: Uint8Array, index: number, parentBlockType: types.blockType):[Op[], number]{
     // not explicit length of expression (used for blocks)
     // console.log("case 2");
