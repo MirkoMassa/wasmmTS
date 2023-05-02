@@ -195,7 +195,7 @@ function patchesPaths(path:patchPath):string{
     }
     return pathDescription;
 }
-export type memDescriptors = string[][]
+export type memDescriptors = string[][];
 export function buildMemStatesStrings(stores:storeProducePatches):memDescriptors{
     
     const memStates:memDescriptors = [];
@@ -219,4 +219,28 @@ export function buildMemStatesStrings(stores:storeProducePatches):memDescriptors
         memStates.push(currentMems);
     });
    return memStates;
+}
+
+export function buildMemStatesArrays(stores:storeProducePatches):number[][][] {
+
+    const memStates:number[][][] = [];
+
+    stores.states.forEach((state, i) => {
+
+        const currentMems:number[][] = [];
+        state.mems.forEach(memInst => {
+            if(objectIsEmpty(memInst.data)){
+                currentMems.push([]);
+            }else{
+                const memBuffer = memInst.data as MaskedArrayObject;
+                const currentMem = [];
+                for(let cell in memBuffer){
+                    currentMem.push(memBuffer[cell]);
+                }
+                currentMems.push(currentMem);
+            }
+        })
+        memStates.push(currentMems);
+    });
+    return memStates;
 }
