@@ -235,6 +235,20 @@ describe("getTree", () =>{
         const input = new Uint8Array(fs.readFileSync('./tests/wasm/datasec.wasm'));
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
+
+    test.only("tablesec.wasm", async ()=>{
+        const data = new Uint8Array(fs.readFileSync('./tests/wasm/tablesec.wasm'));
+        const res = parseModule(data);
+        console.log(JSON.stringify(res, null, 2));
+    
+        // const tmodule = await WebAssembly.instantiate(data).then(res => res.instance.exports);
+        // // @ts-ignore
+        // const res = tmodule.callboth(7);
+        // // @ts-ignore
+        // const res2 = tmodule.callboth(9);
+        // console.log(res, res2);
+
+    })
     
 
     test("loop.wasm", ()=>{
@@ -242,7 +256,7 @@ describe("getTree", () =>{
         const res = parseModule(data);
         console.log(JSON.stringify(res, null, 2));
     })
-    test.only("fib.wasm", ()=>{
+    test("fib.wasm", ()=>{
         const data = new Uint8Array(fs.readFileSync('./tests/wasm/fib.wasm'));
         const res = parseModule(data);
         console.log(JSON.stringify(res, null, 2));
@@ -345,7 +359,7 @@ describe("parseCustom", ()=>{
         const res = helperParser.parseCustomNameSection(data, 0);
         console.log(JSON.stringify(res));
     })
-    test.only("Whole custom from loop.wasm", ()=>{ //passed
+    test("Whole custom from loop.wasm", ()=>{ //passed
         const data = new Uint8Array([
             0x04, 0x6E, 0x61, 0x6D, 0x65, 0x01, 0x07, 0x01, 0x00, 0x04, 0x6C, 0x6F, 0x6F, 0x70, 
             0x02, 0x09, 0x01, 0x00, 0x02, 0x00, 0x01, 0x69, 0x01, 0x01, 0x6A
@@ -354,7 +368,7 @@ describe("parseCustom", ()=>{
         console.log(JSON.stringify(res));
 
     })
-    test.only("Whole custom from arrays.wasm", ()=>{
+    test("Whole custom from arrays.wasm", ()=>{
         const data = new Uint8Array([
             0x04, 0x6E, 0x61, 0x6D, 0x65, 0x01, 0x6D, 0x0B, 0x00, 0x13, 0x69, 0x6D, 0x70, 0x6F, 0x72, 0x74, 
             0x73, 0x2F, 0x72, 0x65, 0x64, 0x75, 0x63, 0x65, 0x5F, 0x66, 0x75, 0x6E, 0x63, 0x01, 0x03, 0x61, 

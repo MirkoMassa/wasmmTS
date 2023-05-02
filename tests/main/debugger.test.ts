@@ -4,7 +4,7 @@ import  * as execTypes from "../../src/exec/types";
 import {Op} from "../../src/helperParser"
 import {Opcode} from "../../src/opcodes"
 import * as WMTS from '../../src/exec/wasmm'
-import { buildMemStatesStrings, buildPatchesStrings, buildStateStrings, descriptionTypes, elemDescriptor, stateDescriptor } from '../../src/debugging/stringifier';
+import { buildMemStatesArrays, buildMemStatesStrings, buildPatchesStrings, buildStateStrings, descriptionTypes, elemDescriptor, stateDescriptor } from '../../src/debugging/stringifier';
 import fs, { stat } from 'fs';
 import { custom } from '../../src/types';
 
@@ -55,6 +55,8 @@ describe("memLogger", () =>{
         // should add to mem 0x27 0x39 0xFF 0x12
         const store = res.stores as execTypes.storeProducePatches;
         const memStates = buildMemStatesStrings(store);
-        console.log("states",memStates)
+        const memStatesArrays = buildMemStatesArrays(store);
+        // console.log("states",memStates)
+        console.log("state arrays", memStatesArrays);
     })
 })
