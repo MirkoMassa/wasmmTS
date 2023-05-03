@@ -113,7 +113,7 @@ describe("RunTest", ()=>{
         console.log(res, oracle);
         expect(res === oracle);
     })
-    test.only("loadstore", async () => {
+    test("loadstore", async () => {
         const buffer = fs.readFileSync('./tests/wasm/loadstore.wasm');
         const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
@@ -127,7 +127,6 @@ describe("RunTest", ()=>{
         console.log("memory output API",tmodule.memory.buffer);
         expect(res === oracle);
     })
-
     test("arrays", async () => {
         const buffer = fs.readFileSync('./tests/wasm/arrays.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}});
@@ -135,12 +134,9 @@ describe("RunTest", ()=>{
         console.log(WMTS.WebAssemblyMts.store)
         const exports = inst.instance.exports;
         const res = exports.array(10);
-    
-        
+
         // @ts-ignore
         console.log("memory output",inst.memory);
-
-
         const tmodule = await WebAssembly.instantiate(buffer, {imports: {reduce_func: (x: number,y: number) => x+y}}).then(res => res.instance.exports);
         // @ts-ignore
         const oracle = tmodule.array(10);
@@ -171,6 +167,44 @@ describe("RunTest", ()=>{
             console.log("fib of",i, "APIres",oracle);
             expect(res === oracle);
         }
+    })
+    test("tablesec.wasm", async ()=>{
+        const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/tablesec.wasm'));
+    
+        const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        //wasmmts API test
+        // @ts-ignore
+        const res = inst.callboth(7);
+        // @ts-ignore
+        const res2 = inst.callboth(9);
+        console.log("wasmmts api",res, res2);
+
+        //js API test
+        // @ts-ignore
+        const apires = tmodule.callboth(7);
+        // @ts-ignore
+        const apires2 = tmodule.callboth(9);
+        console.log("js api",apires, apires2);
+    })
+    test.only("multitablesec.wasm", async ()=>{
+        const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/multitablesec.wasm'));
+    
+        const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        //wasmmts API test
+        // @ts-ignore
+        const res = inst.callboth(7);
+        // @ts-ignore
+        const res2 = inst.callboth(9);
+        console.log("wasmmts api",res, res2);
+
+        //js API test
+        // @ts-ignore
+        const apires = tmodule.callboth(7);
+        // @ts-ignore
+        const apires2 = tmodule.callboth(9);
+        console.log("js api",apires, apires2);
     })
 })
 
