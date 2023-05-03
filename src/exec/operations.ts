@@ -3,10 +3,10 @@ import { current } from 'immer';
 import { Op, IfElseOp, BlockOp } from '../helperParser';
 import {Opcode} from "../opcodes"
 import { valType, memarg, localsVal } from '../types';
-import { FuncRef, MemInst } from './types';
+import { FuncInst, FuncRef, MemInst } from './types';
 import { ValTypeEnum , rawConstBits, WasmConsts } from './types'
 import { WebAssemblyMtsStore, WasmType, WasmFuncType, Label, 
-    Frame, WebAssemblyMts, labelCount, lookForLabel, memCheck, MaskedArrayObject } from './wasmm';
+    Frame, WebAssemblyMts, labelCount, lookForLabel, memCheck, MaskedArrayObject, instantiateParams, instantiateLocals } from './wasmm';
 // utils
 export function checkDualArityFn(x:Op, y:Op, opcode:Opcode) {
     if(x.id != opcode || y.id != opcode) 
@@ -82,6 +82,7 @@ export function processParams(arity:number, types: WasmType[], args: unknown[], 
 }
 
 // OPERATIONS
+
 // math op
 export function i32add(x:Op, y:Op):Op{
     checkDualArityFn(x,y, Opcode.I32Const);
@@ -513,4 +514,23 @@ export function store(stack: Op[], type: WasmConsts, memInst:MemInst, memArgs:me
         // console.log("mem",memData[i + resOffsetAddress])
     }
     // console.log("pushed bytes, ",memInst.data.slice(resOffsetAddress, resOffsetAddress+N/8));
+}
+
+export function funcCall(funcInstance:FuncInst, funcidx:number, store:WebAssemblyMtsStore){
+    const code = funcInstance.code.body as Op[];
+                const newLabel = new Label(funcInstance!.type.returns.length, code, funcInstance!.type);
+                const params:localsVal[] = instantiateParams(funcInstance!.type.parameters);
+                const locals:localsVal[] = instantiateLocals(funcInstance!.code.locals);
+                const allLocals:localsVal[] = params.concat(locals);
+                const newFrame = new Frame(allLocals, funcInstance!.module, funcidx);
+                const parametersArity = funcInstance!.type.parameters.length;
+
+                const args:Op[] = new Array(parametersArity);
+                for (let i = 0; i < parametersArity; i++) {
+                    args[i] = store.stack.pop()!;
+                }
+                processParams(parametersArity, funcInstance!.type.parameters, args, newFrame.locals);
+                
+                store.stack.push(newFrame);
+                store.stack.push(newLabel);
 }
