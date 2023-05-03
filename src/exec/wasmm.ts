@@ -250,7 +250,109 @@ export class WebAssemblyMtsStore implements types.Store {
             }
             // Vector Instructions
             //@TODO
-            // consts
+            // Parametric Instructions
+            //@TODO
+            // Variable Instructions
+            case Opcode.SetLocal:{
+                const frame = lookForFrame(this.stack);
+                const localToSet:parserTypes.localsVal = frame!.locals[op.args as number];
+                execute.setLocal(localToSet, this.stack.pop()!);
+                break;
+            }
+            case Opcode.GetLocal:{
+                const frame = lookForFrame(this.stack);
+                const localToGet:parserTypes.localsVal = frame!.locals[op.args as number];
+                this.stack.push(execute.getLocal(localToGet));
+                // console.log(this.stack[this.stack.length-1]);
+                break;
+            }
+            case Opcode.TeeLocal:{ // like set but keeping the const
+                const frame = lookForFrame(this.stack);
+
+                const localToSet:parserTypes.localsVal = frame!.locals[op.args as number];
+                const valToKeep = this.stack.pop();
+                this.stack.push(valToKeep!);
+                execute.setLocal(localToSet, valToKeep!);
+                break;
+            }
+            case Opcode.SetGlobal:{
+                break;
+            }
+            case Opcode.GetGlobal:{
+                break;
+            }
+            // Table instructions
+            // @TODO
+
+            // Memory instructions
+            case Opcode.I32Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, 32);
+                break;
+            }
+            case Opcode.I64Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, 64);
+                break;
+            }
+            case Opcode.F32Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.F32Const, memInst, op.args as parserTypes.memarg, 32);
+                break;
+            }
+            case Opcode.F64Load:{
+                const memInst = this.takeMem();
+                execute.load(this.stack, Opcode.F64Const, memInst, op.args as parserTypes.memarg, 64);
+                break;
+            }
+
+            case Opcode.I32Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, false, 32);
+                break;
+            }
+            case Opcode.I32Store8:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, true, 8);
+                break;
+            }
+            case Opcode.I32Store16:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, true, 16);
+                break;
+            }
+            case Opcode.I64Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 64);
+                break;
+            }
+            case Opcode.I64Store8:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 8);
+                break;
+            }
+            case Opcode.I64Store16:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 16);
+                break;
+            }
+            case Opcode.I64Store32:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 32);
+                break;
+            }
+            case Opcode.F32Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.F32Const, memInst, op.args as parserTypes.memarg, false, 32);
+                break;
+            }
+            case Opcode.F64Store:{
+                const memInst = this.takeMem();
+                execute.store(this.stack, Opcode.F64Const, memInst, op.args as parserTypes.memarg, false, 64);
+                break;
+            }
+
+            // Numeric Instructions
             case Opcode.I32Const:
             case Opcode.I64Const:
             case Opcode.F32Const:
@@ -536,123 +638,19 @@ export class WebAssemblyMtsStore implements types.Store {
                 break;
             }
             //clz
-                //clzinstr
             //popcnt
             case Opcode.i32popcnt:{
-                // execute.i32popcnt()
             }
             case Opcode.i64popcnt:{
-
             }
-
-            //getters and setters
-            // local get/set
-            case Opcode.SetLocal:{
-                const frame = lookForFrame(this.stack);
-                const localToSet:parserTypes.localsVal = frame!.locals[op.args as number];
-                execute.setLocal(localToSet, this.stack.pop()!);
+            case Opcode.i32remU: {
+                let [divisorOp, dividendOp] = constParamsOperationValues(this.stack, currLabel);
+                const dividend = dividendOp.args as number;
+                const divisor = divisorOp.args as number;
+                const rem = dividend  % divisor;
+                this.stack.push(new Op(Opcode.I32Const, rem));
                 break;
             }
-            case Opcode.GetLocal:{
-                const frame = lookForFrame(this.stack);
-                const localToGet:parserTypes.localsVal = frame!.locals[op.args as number];
-                this.stack.push(execute.getLocal(localToGet));
-                // console.log(this.stack[this.stack.length-1]);
-                break;
-            }
-            case Opcode.TeeLocal:{ // like set but keeping the const
-                const frame = lookForFrame(this.stack);
-
-                const localToSet:parserTypes.localsVal = frame!.locals[op.args as number];
-                const valToKeep = this.stack.pop();
-                this.stack.push(valToKeep!);
-                execute.setLocal(localToSet, valToKeep!);
-                break;
-            }
-            // memory instructions
-            // load
-            case Opcode.I32Load:{
-                const memInst = this.takeMem();
-                execute.load(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, 32);
-                break;
-            }
-            case Opcode.I64Load:{
-                const memInst = this.takeMem();
-                execute.load(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, 64);
-                break;
-            }
-            case Opcode.F32Load:{
-                const memInst = this.takeMem();
-                execute.load(this.stack, Opcode.F32Const, memInst, op.args as parserTypes.memarg, 32);
-                break;
-            }
-            case Opcode.F64Load:{
-                const memInst = this.takeMem();
-                execute.load(this.stack, Opcode.F64Const, memInst, op.args as parserTypes.memarg, 64);
-                break;
-            }
-
-            // store
-            case Opcode.I32Store:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, false, 32);
-                break;
-            }
-            case Opcode.I32Store8:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, true, 8);
-                break;
-            }
-            case Opcode.I32Store16:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.I32Const, memInst, op.args as parserTypes.memarg, true, 16);
-                break;
-            }
-            case Opcode.I64Store:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 64);
-                break;
-            }
-            case Opcode.I64Store8:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 8);
-                break;
-            }
-            case Opcode.I64Store16:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 16);
-                break;
-            }
-            case Opcode.I64Store32:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.I64Const, memInst, op.args as parserTypes.memarg, true, 32);
-                break;
-            }
-            case Opcode.F32Store:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.F32Const, memInst, op.args as parserTypes.memarg, false, 32);
-                break;
-            }
-            case Opcode.F64Store:{
-                const memInst = this.takeMem();
-                execute.store(this.stack, Opcode.F64Const, memInst, op.args as parserTypes.memarg, false, 64);
-                break;
-            }
-            //
-
-            // global get/set
-            // case Opcode.SetGlobal:{
-            //     const frame = this.stack[1] as Frame;
-            //     const globalFromModule =  [this.stack.pop()?.args as number]; // NEED TO TAKE GLOBALS FROM THE STORE (GLOBAL INST)
-            //     const globalToSet:parserTypes.globalsVal = {
-
-            //         value: globalFromModule.val, //wrong
-            //         type: globalFromModule.kind //wrong
-            //     }
-            // }
-            // case Opcode.GetGlobal:{
-                
-            // }
 
         }
     }
