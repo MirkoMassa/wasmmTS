@@ -104,7 +104,7 @@ export class WebAssemblyMtsStore implements types.Store {
     setAutoFreeze = false;
     public stack: Op[];
     constructor(public funcs: types.FuncInst[]=[], public tables: types.TableInst[]=[], public mems: types.MemInst[]=[], 
-        public globals: types.GlobalInst[]=[], public exports: types.ExportInst[]=[]) {
+        public globals: types.GlobalInst[]=[], public elems: types.ElemInst[]=[], public exports: types.ExportInst[]=[]) {
         this.stack = [];
     }
     takeMem(): types.MemInst{
@@ -116,33 +116,54 @@ export class WebAssemblyMtsStore implements types.Store {
     executeOp(op: Op | IfElseOp, currLabel:Label):void | Op[] | Label {
         const len = this.stack.length;
         switch(op.id){
-            case Opcode.Call:{
-                const frame = lookForFrame(this.stack);
-                if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
-                
-                let funcInstance:types.FuncInst;
-                let funcidx: number;
-                let newLabel:Label, newFrame:Frame;
-                funcidx = op.args as number;
-                funcInstance = this.funcs[funcidx];
-                const code = funcInstance.code.body as Op[];
-                // console.log('is that op[]',current(code))
-                newLabel = new Label(funcInstance!.type.returns.length, code, funcInstance!.type);
-                const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
-                const locals:parserTypes.localsVal[] = instantiateLocals(funcInstance!.code.locals);
-                const allLocals:parserTypes.localsVal[] = params.concat(locals);
-                newFrame = new Frame(allLocals, funcInstance!.module, funcidx!);
-                const parametersArity = funcInstance!.type.parameters.length;
-
-                const args:Op[] = new Array(parametersArity);
-                for (let i = 0; i < parametersArity; i++) {
-                    args[i] = this.stack.pop()!;
-                }
-                execute.processParams(parametersArity, funcInstance!.type.parameters, args, newFrame.locals);
-                
-                this.stack.push(newFrame);
-                this.stack.push(newLabel);
+            case Opcode.Unreachable:{
+                //@TODO add error specs
+                throw new Error(`Unreachable.`);
+            }
+            case Opcode.Nop:{
                 break;
+            }
+            case Opcode.Block:{
+                // a br will branch at the end of it
+                const frame = lookForFrame(this.stack);
+                const moduleTypes = frame!.module.types;
+                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack)!;
+                labelRes.isblock = true;
+                this.stack.push(labelRes);
+                break;
+            }
+            case Opcode.Loop:{
+                // debugger;
+                // a br will branch at the start of it
+                const frame = lookForFrame(this.stack);
+                const moduleTypes = frame!.module.types;
+                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack)!;
+                this.stack.push(labelRes);
+                break;
+            }
+            case Opcode.If:{ // else is handled inside
+                const frame = lookForFrame(this.stack);
+                const moduleTypes = frame!.module.types;
+                // passing the boolean (constant numtype), the ifop (containing the block), the store and the module types reference
+                const labelRes:Label | undefined = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes, this.stack);
+                if(labelRes == undefined) break;
+                this.stack.push(labelRes);
+                break;
+            }
+            case Opcode.End:{
+                break;
+            }
+            case Opcode.Br:{
+                currLabel = execute.br(this.stack, op.args as number);
+                return currLabel;
+            }
+            case Opcode.BrIf:{
+                const loopLabel = execute.br_if(this.stack.pop()!, this.stack, op.args as number);
+                if (loopLabel != undefined) return loopLabel;
+            }
+            case Opcode.BrTable:{
+
+               break; 
             }
             case Opcode.Return:{
                 //Find the current Frame
@@ -174,45 +195,55 @@ export class WebAssemblyMtsStore implements types.Store {
                 // console.log("stack", current(this.stack))
                 break;
             }
-            // control instructions
-            case Opcode.If:{ // else is handled inside
+            case Opcode.Call:{
                 const frame = lookForFrame(this.stack);
-                const moduleTypes = frame!.module.types;
-                // passing the boolean (constant numtype), the ifop (containing the block), the store and the module types reference
-                const labelRes:Label | undefined = execute.ifinstr(this.stack.pop()!, op as IfElseOp, moduleTypes, this.stack);
-                if(labelRes == undefined) break;
-                this.stack.push(labelRes);
+                if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
+                
+                let funcidx: number;
+                funcidx = op.args as number;
+
+                let newLabel:Label, newFrame:Frame;
+                let funcInstance:types.FuncInst;
+                funcInstance = this.funcs[funcidx];
+                const code = funcInstance.code.body as Op[];
+                // console.log('is that op[]',current(code))
+                newLabel = new Label(funcInstance!.type.returns.length, code, funcInstance!.type);
+                const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
+                const locals:parserTypes.localsVal[] = instantiateLocals(funcInstance!.code.locals);
+                const allLocals:parserTypes.localsVal[] = params.concat(locals);
+                newFrame = new Frame(allLocals, funcInstance!.module, funcidx!);
+                const parametersArity = funcInstance!.type.parameters.length;
+
+                const args:Op[] = new Array(parametersArity);
+                for (let i = 0; i < parametersArity; i++) {
+                    args[i] = this.stack.pop()!;
+                }
+                execute.processParams(parametersArity, funcInstance!.type.parameters, args, newFrame.locals);
+                
+                this.stack.push(newFrame);
+                this.stack.push(newLabel);
                 break;
             }
-            case Opcode.Block:{
-                // a br will branch at the end of it
+            case Opcode.CallIndirect:{
                 const frame = lookForFrame(this.stack);
-                const moduleTypes = frame!.module.types;
-                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack)!;
-                labelRes.isblock = true;
-                this.stack.push(labelRes);
+                // if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
+                
+                // in the current specs at most 1 table can be defined, 
+                // so the table will always be tableinst[0]
+
+                let funcidx:number, tableidx: number;
+                [funcidx, tableidx] = op.args as number[];
+
+                let newLabel:Label, newFrame:Frame;
+                let funcInstance:types.FuncInst;
+                // const table = this.tables[0].;
+
                 break;
             }
-            case Opcode.Loop:{
-                // debugger;
-                // a br will branch at the start of it
-                const frame = lookForFrame(this.stack);
-                const moduleTypes = frame!.module.types;
-                const labelRes = execute.executeBlock(op as BlockOp, moduleTypes, this.stack)!;
-                this.stack.push(labelRes);
-                break;
-            }
-            case Opcode.Br:{
-                currLabel = execute.br(this.stack, op.args as number);
-                return currLabel;
-            }
-            case Opcode.BrIf:{
-                const loopLabel = execute.br_if(this.stack.pop()!, this.stack, op.args as number);
-                if (loopLabel != undefined) return loopLabel;
-            }
-            case Opcode.End:{
-                break;
-            }
+            
+            
+            
+            
             // consts
             case Opcode.I32Const:
             case Opcode.I64Const:
@@ -706,20 +737,53 @@ export class WebAssemblyMts {
             )
             currentFunctionIndex++;
         }
+        // ElemInst
+        for(let index in elemSection?.content) {
+            const currElem = elemSection?.content[index];
+            let tableID:number = 0;
+            if(currElem.activemode != undefined) tableID = currElem.activemode.table as number;
+
+            let elem:types.ElemInst= {
+                type: currElem.type,
+                data: currElem.init,
+                table: tableID
+            }
+            // console.log("elem", index, elem)
+            let length = WebAssemblyMts.store.elems.push(elem)
+            mtsModule.elems.push(
+                {kind: "elemaddr", val: length-1}
+            )
+        }
         // TableInst
         
-        //tables seems to be arrays of function references/functions
-        // for(let index in tableSection?.content) {
-            
-        //     let table:types.TableInst= {
-        //         type: tableSection?.content[index],
-        //         elem: 
-        //     }
-        //     let length = WebAssemblyMts.store.funcs.push(table)
-        //     mtsModule.tables.push(
-        //         {kind: "tableaddr", val: length-1}
-        //     )
-        // }
+        // for(let index in tableSection?.content) {}
+            // const currTable = tableSection?.content[index];
+            const currTable = tableSection?.content[0];
+
+            //evaluating limits
+            const limFlag = currTable.lim.flag as number;
+            const tableSize = limFlag ? currTable.max as number : currTable.min as number;
+            //filling arrays of funcrefs
+            const tableElems = new Array(tableSize);
+            const elemInstances = this.store.elems;
+            let j = 0;
+            for (let i = 0; i < elemInstances.length; i++) {
+                if(elemInstances[i].table == 0){ // for now just elems in tables[0] will be initialized
+                    elemInstances[i].data.forEach(ref => {
+                        tableElems[j] = ref;
+                        j++;
+                    });
+                }
+            }
+            let table:types.TableInst= {
+                type: currTable.et,
+                elem: tableElems
+            }
+            let len = WebAssemblyMts.store.tables.push(table);
+            mtsModule.tables.push(
+                {kind: "tableaddr", val: len-1}
+            )
+            console.log(this.store.tables)
 
         // MemInst
         for(let index in memorySection?.content) {
@@ -755,17 +819,6 @@ export class WebAssemblyMts {
                 {kind: "globaladdr", val: length-1}
             )
         }
-        // let mem : Uint8Array;
-        // let PracticalMem = new Proxy(mem, {magicThings});
-        
-        // ElemInst
-
-        // for(let index in elemSection?.content) {
-        //     let elem:types.ElemInst= {
-        //         type: elemSection?.content[index].type
-        //         data: // vector of ref
-        //     }
-        // }
 
         // ExportInst
         for(let index in exportSection?.content) {
@@ -1157,6 +1210,6 @@ function initializeMemory(store:WebAssemblyMtsStore) {
         const data = createMemProxy();
         mem.data = data;
     });
-    console.log("initialized memes",store.mems);
+    // console.log("initialized mems",store.mems);
 }
 export default WebAssemblyMts;
