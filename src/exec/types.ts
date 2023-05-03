@@ -43,7 +43,8 @@ export type GlobalInst = {
 }
 export type ElemInst = {
     type: refType,
-    data: number[]
+    data: number[],
+    table: number
 }
 export type DataInst = {
     data: number[]
