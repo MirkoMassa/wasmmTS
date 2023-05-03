@@ -14,9 +14,9 @@
     (export "range" (func $range))
     (export "reduce" (func $reduce))
     (export "createArrTest" (func $createArrTest))
-    (export "tab" (table $tb))
 
     (memory (export "memory") 1)
+    
     ;; Arrays and some array recursion exercices
      ;; allocating 64KB
 
