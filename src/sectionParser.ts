@@ -222,13 +222,13 @@ export function parseElement(bytes: Uint8Array, index: number):types.elem[]{
                     // tableidx
                     let [tableidx, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
-                    // offset
+                    // offset (expression)
                     let offset:helperParser.Op[];
                     [offset, index] = helperParser.parseExpr(bytes, index);
-
                     // elemkind
                     if(bytes[index] != 0x00) throw new Error("Invalid elemkind case 2.");
                     // vector of funcidx
+                    index++;
                     let size;
                     [size, width] = lebToInt(bytes.slice(index, index+4));
                     index+= width;
