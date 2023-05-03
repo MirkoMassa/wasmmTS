@@ -236,8 +236,21 @@ describe("getTree", () =>{
         console.log(JSON.stringify(parseModule(input), null, 2));
     })
 
-    test.only("tablesec.wasm", async ()=>{
+    test("tablesec.wasm", async ()=>{
         const data = new Uint8Array(fs.readFileSync('./tests/wasm/tablesec.wasm'));
+        const res = parseModule(data);
+        console.log(JSON.stringify(res, null, 2));
+    
+        // const tmodule = await WebAssembly.instantiate(data).then(res => res.instance.exports);
+        // // @ts-ignore
+        // const res = tmodule.callboth(7);
+        // // @ts-ignore
+        // const res2 = tmodule.callboth(9);
+        // console.log(res, res2);
+
+    })
+    test.only("multitablesec.wasm", async ()=>{
+        const data = new Uint8Array(fs.readFileSync('./tests/wasm/multitablesec.wasm'));
         const res = parseModule(data);
         console.log(JSON.stringify(res, null, 2));
     
