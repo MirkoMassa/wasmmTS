@@ -329,6 +329,9 @@ export function parseCustomNameSection(bytes:Uint8Array, index:number):[types.cu
         case 4:{
             [names, index] = parseTypeNames(bytes, index); break;
         }
+        case 5:{
+            [names, index] = parseTableNames(bytes, index); break;
+        }
         default:{
             const bytesPosOutput = bytes.slice(index, index+4)
             let bytesStrOutput:string = "";
@@ -397,4 +400,18 @@ export function parseTypeNames(bytes:Uint8Array, index:number):[types.nameAssoc[
         typeNames.push([typeidx, name]);
     }
     return [typeNames, index];
+}
+
+export function parseTableNames(bytes:Uint8Array, index:number):[types.nameAssoc[], number]{
+    const [tableCount, width] = lebToInt(bytes.slice(index, index+4));
+    index += width;
+    const tableNames:types.nameAssoc[] = [];
+    for (let i = 0; i < tableCount; i++) {
+        let name, tableidx, width;
+        [tableidx, width] = lebToInt(bytes.slice(index, index+4));
+        index += width;
+        [name, index] = parseName(bytes, index);
+        tableNames.push([tableidx, name]);
+    }
+    return [tableNames, index];
 }
