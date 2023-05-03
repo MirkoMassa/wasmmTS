@@ -74,7 +74,7 @@ export class WasmFuncType {
     
 }
 
-function instantiateParams(parameters:WasmType[]):parserTypes.localsVal[] {
+export function instantiateParams(parameters:WasmType[]):parserTypes.localsVal[] {
     const params:parserTypes.localsVal[] = [];
     for(let i=0; i < parameters.length; i++) {
         switch(parameters[i]) {
@@ -90,7 +90,7 @@ function instantiateParams(parameters:WasmType[]):parserTypes.localsVal[] {
     }
     return params;
 }
-function instantiateLocals(locals:parserTypes.valType[]){
+export function instantiateLocals(locals:parserTypes.valType[]){
     let instantiatedLocals:parserTypes.localsVal[] = [];
     for(let i=0; i < locals.length; i++) {
         instantiatedLocals.push({value:0, type:locals[i]});
@@ -116,6 +116,7 @@ export class WebAssemblyMtsStore implements types.Store {
     executeOp(op: Op | IfElseOp, currLabel:Label):void | Op[] | Label {
         const len = this.stack.length;
         switch(op.id){
+            // Control instructions
             case Opcode.Unreachable:{
                 //@TODO add error specs
                 throw new Error(`Unreachable.`);
@@ -202,48 +203,53 @@ export class WebAssemblyMtsStore implements types.Store {
                 let funcidx: number;
                 funcidx = op.args as number;
 
-                let newLabel:Label, newFrame:Frame;
-                let funcInstance:types.FuncInst;
-                funcInstance = this.funcs[funcidx];
-                const code = funcInstance.code.body as Op[];
-                // console.log('is that op[]',current(code))
-                newLabel = new Label(funcInstance!.type.returns.length, code, funcInstance!.type);
-                const params:parserTypes.localsVal[] = instantiateParams(funcInstance!.type.parameters);
-                const locals:parserTypes.localsVal[] = instantiateLocals(funcInstance!.code.locals);
-                const allLocals:parserTypes.localsVal[] = params.concat(locals);
-                newFrame = new Frame(allLocals, funcInstance!.module, funcidx!);
-                const parametersArity = funcInstance!.type.parameters.length;
-
-                const args:Op[] = new Array(parametersArity);
-                for (let i = 0; i < parametersArity; i++) {
-                    args[i] = this.stack.pop()!;
-                }
-                execute.processParams(parametersArity, funcInstance!.type.parameters, args, newFrame.locals);
-                
-                this.stack.push(newFrame);
-                this.stack.push(newLabel);
+                const funcInstance = this.funcs[funcidx];
+                execute.funcCall(funcInstance, funcidx, this);
                 break;
             }
             case Opcode.CallIndirect:{
-                const frame = lookForFrame(this.stack);
-                // if(frame?.module.funcs[op.args as number] == undefined) throw new Error(`Function (typeidx ${op.args} doesn't exists.`);
+                const frame = lookForFrame(this.stack);                
+                // in the current specs AT MOST 1 table can be defined, so the table will always be tableinst[0]
                 
-                // in the current specs at most 1 table can be defined, 
-                // so the table will always be tableinst[0]
+                let tableidx:number, typeidx: number;
+                console.log("args:",op.args);
+                [typeidx, tableidx] = op.args as number[];
+                console.log("stack currently",this.stack);
+                const table = this.tables[0];
+                if(table == undefined) throw new Error (`No table found at tableidx '${tableidx}'`);
+                const tableAddr = this.stack.pop()!;
+                if(tableAddr.id != Opcode.I32Const) throw new Error (`Invalid table address, expected I32Const, got ${tableAddr.kind}`) 
+                const funcidx = table.elem[tableAddr.args as number];
+                const funcInstance = this.funcs[funcidx];
 
-                let funcidx:number, tableidx: number;
-                [funcidx, tableidx] = op.args as number[];
-
-                let newLabel:Label, newFrame:Frame;
-                let funcInstance:types.FuncInst;
-                // const table = this.tables[0].;
-
+                execute.funcCall(funcInstance, funcidx, this);
                 break;
             }
-            
-            
-            
-            
+            // Reference Instructions
+            case Opcode.RefNull: {
+                this.stack.push(op); // pushing self null op and his argument
+                break;
+            }
+            case Opcode.RefIsNull: {
+                const val = this.stack.pop();
+                if(val?.id != Opcode.RefNull && val?.id != Opcode.RefFunc){
+                    throw new Error(`No reference value on top of the stack, instead got '${val?.kind}'.`);
+                }
+                if(val?.id == Opcode.RefNull){
+                    this.stack.push(new Op(Opcode.I32Const, 1));
+                }else{
+                    this.stack.push(new Op(Opcode.I32Const, 0)); 
+                }
+                break;
+            }
+            case Opcode.RefFunc: {
+                const funcidx = op.args as number;
+                if(this.funcs[funcidx] == undefined) throw new Error (`Undefined function (funcidx '${funcidx}').`);
+                this.stack.push(op);
+                break;
+            }
+            // Vector Instructions
+            //@TODO
             // consts
             case Opcode.I32Const:
             case Opcode.I64Const:
