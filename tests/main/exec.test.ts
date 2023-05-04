@@ -187,8 +187,27 @@ describe("RunTest", ()=>{
         const apires2 = tmodule.callboth(9);
         console.log("js api",apires, apires2);
     })
-    test.only("multitablesec.wasm", async ()=>{
+    test("multitablesec.wasm", async ()=>{
         const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/multitablesec.wasm'));
+    
+        const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
+        //wasmmts API test
+        // @ts-ignore
+        const res = inst.callboth(7);
+        // @ts-ignore
+        const res2 = inst.callboth(8);
+        console.log("wasmmts api",res, res2);
+
+        //js API test
+        // @ts-ignore
+        const apires = tmodule.callboth(7);
+        // @ts-ignore
+        const apires2 = tmodule.callboth(8);
+        console.log("js api",apires, apires2);
+    })
+    test.only("multitablesecOffset.wasm", async ()=>{
+        const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/multitablesecOffset.wasm'));
     
         const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance.exports);
