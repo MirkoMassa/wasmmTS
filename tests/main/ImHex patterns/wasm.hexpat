@@ -571,13 +571,13 @@ struct Op {
     if(op == Opcode::Br || op == Opcode::BrIf) {
         type::LEB128 labelidx;
     }
-    if(op == Opcode::Call || op == Opcode::CallIndirect || op == Opcode::RefFunc) {
+    if(op == Opcode::Call  || op == Opcode::RefFunc) {
         type::LEB128 funcidx;
     }
 
     if(op == Opcode::CallIndirect) {
+        type::LEB128 typeidx;
         type::LEB128 tableidx;
-        type::LEB128 funcidx;
     }
 
     if(op == Opcode::I32Const || op == Opcode::I64Const) {
@@ -761,6 +761,8 @@ struct WASM {
 };
 
 WASM wasm @ 0x00;
+
+
 
 
 
