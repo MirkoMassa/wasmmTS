@@ -212,10 +212,8 @@ export class WebAssemblyMtsStore implements types.Store {
                 // in the current specs AT MOST 1 table can be defined, so the table will always be tableinst[0]
                 
                 let tableidx:number, typeidx: number;
-                console.log("args:",op.args);
                 [typeidx, tableidx] = op.args as number[];
-                console.log("stack currently",this.stack);
-                const table = this.tables[0];
+                const table = this.tables[tableidx];
                 if(table == undefined) throw new Error (`No table found at tableidx '${tableidx}'`);
                 const tableAddr = this.stack.pop()!;
                 if(tableAddr.id != Opcode.I32Const) throw new Error (`Invalid table address, expected I32Const, got ${tableAddr.kind}`) 
@@ -250,8 +248,10 @@ export class WebAssemblyMtsStore implements types.Store {
             }
             // Vector Instructions
             //@TODO
+
             // Parametric Instructions
             //@TODO
+            
             // Variable Instructions
             case Opcode.SetLocal:{
                 const frame = lookForFrame(this.stack);
@@ -651,7 +651,6 @@ export class WebAssemblyMtsStore implements types.Store {
                 this.stack.push(new Op(Opcode.I32Const, rem));
                 break;
             }
-
         }
     }
 }
@@ -746,13 +745,13 @@ export class WebAssemblyMts {
             const currElem = elemSection?.content[index];
             let tableID:number = 0;
             if(currElem.activemode != undefined) tableID = currElem.activemode.table as number;
-
+            const currOffset = currElem.activemode.offset[0].args;
             let elem:types.ElemInst= {
                 type: currElem.type,
                 data: currElem.init,
+                offset: currOffset,
                 table: tableID
             }
-            // console.log("elem", index, elem)
             let length = WebAssemblyMts.store.elems.push(elem)
             mtsModule.elems.push(
                 {kind: "elemaddr", val: length-1}
@@ -760,25 +759,26 @@ export class WebAssemblyMts {
         }
         // TableInst
         
-        // for(let index in tableSection?.content) {}
-            // const currTable = tableSection?.content[index];
-            const currTable = tableSection?.content[0];
-
+        for(let index in tableSection?.content) {
+            const currTable = tableSection?.content[index];
             //evaluating limits
             const limFlag = currTable.lim.flag as number;
             const tableSize = limFlag ? currTable.max as number : currTable.min as number;
             //filling arrays of funcrefs
             const tableElems = new Array(tableSize);
             const elemInstances = this.store.elems;
-            let j = 0;
-            for (let i = 0; i < elemInstances.length; i++) {
-                if(elemInstances[i].table == 0){ // for now just elems in tables[0] will be initialized
-                    elemInstances[i].data.forEach(ref => {
-                        tableElems[j] = ref;
+            
+            elemInstances.forEach(elem => {
+                let j = 0;
+                if(elem.table == parseInt(index)){
+                    elem.data.forEach((funcRef, i) => {
+                        if(funcRef != Opcode.End){
+                            tableElems[elem.offset+j] = funcRef;
+                        }
                         j++;
                     });
                 }
-            }
+            });
             let table:types.TableInst= {
                 type: currTable.et,
                 elem: tableElems
@@ -787,8 +787,8 @@ export class WebAssemblyMts {
             mtsModule.tables.push(
                 {kind: "tableaddr", val: len-1}
             )
-            console.log(this.store.tables)
-
+        }
+        // console.log("tables",this.store.tables)
         // MemInst
         for(let index in memorySection?.content) {
             
