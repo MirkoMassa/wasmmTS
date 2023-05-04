@@ -44,6 +44,7 @@ export type GlobalInst = {
 export type ElemInst = {
     type: refType,
     data: number[],
+    offset: number,
     table: number
 }
 export type DataInst = {
