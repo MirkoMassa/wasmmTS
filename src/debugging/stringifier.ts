@@ -3,7 +3,7 @@ import { patchPath, storeProducePatches, ValTypeEnum } from "../exec/types";
 import { Op } from "../helperParser";
 import { Opcode } from "../opcodes";
 import { custom, indirectNameAssoc, nameAssoc, namesVector, valType, WASMSectionID } from "../types";
-import { lookForLabel, lookForFrame, Frame, Label, WasmFuncType, WebAssemblyMtsStore, lookForFrameNoError, MaskedArrayObject } from "../exec/wasmm";
+import { lookForLabel, lookForFrame, Frame, Label, WasmFuncType, WebAssemblyMtsStore, lookForFrameNoError, MaskedArrayObject, instantiateLocals } from "../exec/wasmm";
 import { WasmModule } from "../parser";
 import { current } from "immer";
 import path from "path";
@@ -244,3 +244,15 @@ export function buildMemStatesArrays(stores:storeProducePatches):number[][][] {
     });
     return memStates;
 }
+
+// export function getLocalNames(customSec:custom[]) {
+//     instantiateLocals()
+//     const [moduleCustom, funcsCustom, localsCustom] = getCustoms(customSec);
+//     // locals
+//     let localsStringified:string = "";
+//     for (let j = 0; j < currFrame.locals.length; j++) {
+//         const localName = localsCustom[funcidx][1][j][1][1];
+//         const localType = ValTypeEnum[currFrame.locals[j].type];
+//         localsStringified = localsStringified.concat(`'${localName}'= ${currFrame.locals[j].value} (${localType}), `)
+//     }
+//     localsStringified = localsStringified.slice(0, localsStringified.length-2).concat(".");
