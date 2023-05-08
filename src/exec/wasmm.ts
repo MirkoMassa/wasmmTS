@@ -736,7 +736,7 @@ export class WebAssemblyMts {
             }
             WebAssemblyMts.store.funcs.push(func);
             mtsModule.funcs.push(
-                {kind: "funcaddr", val: funcTypeSignatures[currentFunctionIndex]}
+                {kind: "funcaddr", val: currTypeSignature}
             )
             currentFunctionIndex++;
         }
@@ -771,6 +771,7 @@ export class WebAssemblyMts {
             elemInstances.forEach(elem => {
                 let j = 0;
                 if(elem.table == parseInt(index)){
+                    // @TODO convert this \/ to while(funcRef != Opcode.End)
                     elem.data.forEach((funcRef, i) => {
                         if(funcRef != Opcode.End){
                             tableElems[elem.offset+j] = funcRef;
@@ -1103,6 +1104,11 @@ export class WebAssemblyMts {
         }
     }
 }
+
+
+
+
+
 // helper funcs
 export function isWebAssemblyModule(data: unknown): data is types.WebAssemblyMtsModule {
     //runtime test of the data: if it is true assert something about the type of data to typescript
