@@ -14,8 +14,13 @@
 wasmmTS is just a parser => evaluator => executor of WebAssembly .wasm binary files with a basic interface made in React. The difference between this and other interpreters is that you can see every step of the stack, memory and more. <br>
 Definitely the most challenging and complete project I've ever done, I'm planning on doing videos where I explain what I've done step by step.
 ## How does it work? [Try the demo!](https://www.mirkomassa.com)
+![](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjNlMmNlZjRiMDEwMDA3NmMwYWMzZTgzYzI3NGVhNzk0ZWQ5Y2ZjYyZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/RNdSvfzHywJvstk0fy/giphy.gif)
+![](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzkyOWZlMmY3YjdiY2NiYjYyY2E3NjgwNWFlMjJlNDc3NWI3ZDQxYSZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/FUJQ8fxD7vC5zv3Io6/giphy.gif)
+## Choose between normal execution and state aware execution!
+![](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZDY5NDVhNjk4ZTc2MzZiNzU1NTAxMWM0MDk0N2QwZDlkMzY3MDVjYiZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/9464tVcGjC4VieAaE1/giphy.gif)
+## Peek at the guide if you don't know what to do!
+![](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMzNiMDA4MDFmMDgzN2E4NTM4YTI3Yjg2Zjg3Njc2ODQyOTAzNzYxYyZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/iZlSS0SKtDPJ7VQSZn/giphy.gif)
 
-![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWI5ODA4NjUwZjgwYzNmMDcyYTI3ZGE0NmYwNWFjNjE0OGMxYzdjNSZjdD1n/5gSeeFtGeNTtePvQoJ/giphy.gif)
 # How is it structured?
 ---------------------------------------
 As the official documentation says:
