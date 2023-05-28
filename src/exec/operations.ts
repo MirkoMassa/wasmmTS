@@ -16,6 +16,19 @@ export function checkTypeOpcode(x:Op, opcode:Opcode) {
     if(x.id != opcode) 
     throw new Error (`Invalid number types expect (${Opcode[opcode]}) got [${Opcode[x.id]}]`);
 }
+
+export function isNumber(x:Op) {
+    switch(x.id){
+        case Opcode.I32Const:
+        case Opcode.I64Const:
+        case Opcode.F32Const:
+        case Opcode.F64Const:{
+            break;
+        }
+        default: throw new Error (`Invalid value: expected a numeric val, got [${Opcode[x.id]}]`);
+    }
+}
+
 export function checkValTypeAndOp(x:Op, y:valType){
     const valToOp = convertValTypeToOpCode(y)
     if(x.id != valToOp) 
@@ -377,7 +390,7 @@ export function f64ge(x:Op, y:Op) {
 //control instruction
 
 export function ifinstr(bool: Op, ifop:IfElseOp, moduleTypes:WasmFuncType[], stack:Op[]) {
-    checkTypeOpcode(bool, Opcode.I32Const);
+    isNumber(bool);
     const block =  bool.args ? ifop.ifBlock : ifop.elseBlock;
     return executeBlock(block!, moduleTypes, stack);
 }
