@@ -228,11 +228,18 @@ describe("RunTest", ()=>{
 })
 
 describe("ImmutableStateTest", ()=>{
-    test.only("loopTT", async () => {
+    test("loopTT", async () => {
         const buffer = fs.readFileSync('./tests/wasm/loop.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance);
         debugger;
         const res = inst. exportsTT.varloop(7);
+        console.log(res.val);
+    })
+    test("fac", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/fac.wasm');
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer).then(res=> res.instance);
+        debugger;
+        const res = inst. exportsTT.fac(7);
         console.log(res.val);
     })
     test("arraysTT", async () => {

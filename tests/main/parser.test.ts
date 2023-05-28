@@ -247,7 +247,6 @@ describe("getTree", () =>{
         // // @ts-ignore
         // const res2 = tmodule.callboth(9);
         // console.log(res, res2);
-
     })
     test.only("multitablesec.wasm", async ()=>{
         const data = new Uint8Array(fs.readFileSync('./tests/wasm/multitablesec.wasm'));
@@ -260,7 +259,6 @@ describe("getTree", () =>{
         // // @ts-ignore
         // const res2 = tmodule.callboth(9);
         // console.log(res, res2);
-
     })
     
 
@@ -408,6 +406,13 @@ describe("parseCustom", ()=>{
         ]);
         const res = bp.parseCustom(data, 0);
         console.log(JSON.stringify(res));
-
+    })
+    test.only("Whole custom from fac.wasm", ()=>{
+    const data = new Uint8Array([
+        0x04, 0x6E, 0x61, 0x6D, 0x65, 0x01, 0x06, 0x01, 0x00, 0x03, 0x66, 0x61, 0x63, 0x02, 
+        0x03, 0x01, 0x00, 0x00
+    ]);
+    const res = bp.parseCustom(data, 0);
+        console.log(JSON.stringify(res));
     })
 })
