@@ -80,8 +80,16 @@ export function descCurrentFrame(currStore:WebAssemblyMtsStore, currFrame:Frame 
         const funcName = funcsCustom[funcidx][1][1];
         // locals
         let localsStringified:string = "";
+        console.log('currframe',currFrame);
+        const currentLocal = localsCustom[funcidx][1];
         for (let j = 0; j < currFrame.locals.length; j++) {
-            const localName = localsCustom[funcidx][1][j][1][1];
+            let localName = '';
+            if(currentLocal[j] == undefined){
+                localName = 'unnamed';
+            }else{
+                localName = currentLocal[j][1][1];
+            }
+            console.log(localName)
             const localType = ValTypeEnum[currFrame.locals[j].type];
             localsStringified = localsStringified.concat(`'${localName}'= ${currFrame.locals[j].value} (${localType}), `)
         }
