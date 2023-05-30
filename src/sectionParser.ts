@@ -15,16 +15,23 @@ import { logAsHex } from "./utils";
 export function parseCustom(bytes: Uint8Array, index: number): types.custom[] {
     // name (for now it's the only custom section type in existence)
     let customType;
-    [customType, index] = helperParser.parseName(bytes, index);
-    if(customType[1] != "name") throw new Error (`Unrecognized custom section type "${customType[1]}"`);
     const customs:types.custom[] = [];
-    while(index < bytes.byteLength){
-        // console.log("before",index)
-        let subSectionRes:types.custom | null;
-        [subSectionRes, index] = helperParser.parseCustomNameSection(bytes, index);
-        customs.push(subSectionRes);
-        // console.log("after",index)
+    [customType, index] = helperParser.parseName(bytes, index);
+
+    if(customType[1] === "name") {
+        while(index < bytes.byteLength){
+            // console.log("before",index)
+            let subSectionRes:types.custom | null;
+            [subSectionRes, index] = helperParser.parseCustomNameSection(bytes, index);
+            customs.push(subSectionRes);
+            // console.log("after",index)
+        }
     }
+    else if(customType[1] === "sourceMappingURL") {
+        // do something I guess
+    }else throw new Error (`Unrecognized custom section type "${customType[1]}"`);
+    
+    
     return customs;
 }
 
