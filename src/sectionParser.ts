@@ -29,8 +29,10 @@ export function parseCustom(bytes: Uint8Array, index: number): types.custom[] {
     }
     else if(customType[1] === "sourceMappingURL") {
         // do something I guess
-    }else throw new Error (`Unrecognized custom section type "${customType[1]}"`);
-    
+    // }else throw new Error (`Unrecognized custom section type "${customType[1]}"`);
+    }else{
+        
+    }
     
     return customs;
 }
