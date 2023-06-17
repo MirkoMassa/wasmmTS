@@ -1,5 +1,5 @@
 {
-  "name": "wasmmts-a_wasm_interpreter",
+  "name": "wasmmts",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
