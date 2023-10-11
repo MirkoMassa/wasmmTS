@@ -640,8 +640,14 @@ export class WebAssemblyMtsStore implements types.Store {
             //clz
             //popcnt
             case Opcode.i32popcnt:{
+                const res = execute.i32popcnt(this.stack.pop()!);
+                // this.stack.push(execute.i32popcnt(this.stack.pop()!));
+                this.stack.push(res);
+                break;
             }
             case Opcode.i64popcnt:{
+                this.stack.push(execute.i64popcnt(this.stack.pop()!));
+                break;
             }
             case Opcode.i32remU: {
                 let [divisorOp, dividendOp] = constParamsOperationValues(this.stack, currLabel);
