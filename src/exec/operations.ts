@@ -73,8 +73,8 @@ export function processParams(arity:number, types: WasmType[], args: unknown[], 
                 case 'i32':
                 case 'f32':
                 case 'f64':
-                //All ok
-                locals[i].value = currentArg as number; break;
+                    //All ok
+                    locals[i].value = currentArg as number; break;
                 default: throw new Error();
             }
         }else if(typeof args[i] == "bigint") {
@@ -377,15 +377,26 @@ export function f64ge(x:Op, y:Op) {
     return new Op(Opcode.F64Const, 0);
 }
 
-// export function i32popcnt(x:Op) {
-//     checkTypeOpcode(x, Opcode.I32Const);
-//     let count = 0;
-//      while (x) {
-//        count += x.args as number & 1;
-//        x.args as number >>= 1;
-//      }
-//      return count;
-// }
+export function i32popcnt(x:Op) {
+    checkTypeOpcode(x, Opcode.I32Const);
+    let num = x.args as number;
+    const strNum = num.toString(2);
+    let count = 0;
+    for (let i = 0; i < strNum.length; i++) {
+        if(strNum[i] == '1') count++;
+    }
+    return new Op(Opcode.I32Const, count);
+}
+export function i64popcnt(x:Op) {
+    checkTypeOpcode(x, Opcode.I64Const);
+    let num = x.args as number;
+    const strNum = num.toString(2);
+    let count = 0;
+    for (let i = 0; i < strNum.length; i++) {
+        if(strNum[i] == '1') count++;
+    }
+    return new Op(Opcode.I32Const, count);
+}
 
 //control instruction
 
