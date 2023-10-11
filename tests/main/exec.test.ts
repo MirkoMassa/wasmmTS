@@ -8,6 +8,17 @@ import * as execute from '../../src/exec/operations'
 import fs from 'fs';
 
 describe("RunTest", ()=>{
+    test.only("popcnt", async () => {
+        const buffer = fs.readFileSync('./tests/wasm/popcnt.wasm');
+        const inst = await WMTS.WebAssemblyMts.instantiate(buffer);
+        const exportsTT = inst.instance.exportsTT;
+        const res = exportsTT.popcnt(7);
+        const apiInst = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
+        // @ts-ignore
+        const apires = apiInst.popcnt(7);
+        console.log(res.val, apires)
+    })
+
     test("fib", async () => {
         const buffer = fs.readFileSync('./tests/wasm/fib.wasm');
         const inst = await WMTS.WebAssemblyMts.instantiate(buffer);
@@ -206,7 +217,7 @@ describe("RunTest", ()=>{
         const apires2 = tmodule.callboth(8);
         console.log("js api",apires, apires2);
     })
-    test.only("multitablesecOffset.wasm", async ()=>{
+    test("multitablesecOffset.wasm", async ()=>{
         const buffer = new Uint8Array(fs.readFileSync('./tests/wasm/multitablesecOffset.wasm'));
     
         const tmodule = await WebAssembly.instantiate(buffer).then(res => res.instance.exports);
@@ -344,9 +355,3 @@ describe("sampleFunc", () =>{
         test(21640, 32);
     })
 })
-
-// describe('opcodes', () => { 
-//     it('popcnt', () =>{
-//         execute.popcnt()
-//     })
-//  })
